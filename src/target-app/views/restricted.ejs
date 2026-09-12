@@ -1,0 +1,7 @@
+<%- include('partials/top', { title: 'Access Denied', nav: true, notice: false }) %>
+<table width="100%" border="0" cellpadding="8" cellspacing="0"><tr><td>
+  <font face="Tahoma" size="3" color="#B00020"><b>Access Denied</b></font><br><br>
+  <font face="Tahoma" size="2">You do not have permission to view this member record.<br>
+  Contact a supervisor to request elevated access. (Member <%= member.id %>)</font>
+</td></tr></table>
+<%- include('partials/bottom') %>

@@ -1,0 +1,101 @@
+{
+  "runId": "replay_escalation_20260912180848",
+  "mode": "replay",
+  "capabilityId": "member-savings-lookup",
+  "capabilityVersion": "1.0.0",
+  "params": {
+    "memberId": "12345"
+  },
+  "startedAt": "2026-09-12T18:08:48.094Z",
+  "finishedAt": "2026-09-12T18:08:52.641Z",
+  "result": {
+    "status": "escalated",
+    "interventions": [
+      {
+        "id": "iv_replay_escalation_20260912180848_1",
+        "reason": "urlMatches(/desk) — observed: checkpoint not satisfied",
+        "type": "assist",
+        "disposition": "completed_step",
+        "operator": "operator-jsmith"
+      }
+    ],
+    "finalStatus": "success",
+    "outputs": {
+      "savingsBalance": "***"
+    }
+  },
+  "telemetry": [
+    {
+      "stepId": "s1",
+      "strategyRank": null,
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 86
+    },
+    {
+      "stepId": "s2",
+      "strategyRank": 0,
+      "strategyKind": "role",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 78
+    },
+    {
+      "stepId": "s3",
+      "strategyRank": 0,
+      "strategyKind": "role",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 67
+    },
+    {
+      "stepId": "s4",
+      "strategyRank": 0,
+      "strategyKind": "role",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 3264
+    },
+    {
+      "stepId": "s5",
+      "strategyRank": 0,
+      "strategyKind": "role",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 86
+    },
+    {
+      "stepId": "s6",
+      "strategyRank": 0,
+      "strategyKind": "nearText",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 31
+    },
+    {
+      "stepId": "s7",
+      "strategyRank": 0,
+      "strategyKind": "role",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 86
+    },
+    {
+      "stepId": "s8",
+      "strategyRank": 0,
+      "strategyKind": "role",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 85
+    },
+    {
+      "stepId": "s9",
+      "strategyRank": 0,
+      "strategyKind": "nearText",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 32
+    }
+  ],
+  "evidenceDir": "evidence/replay_escalation_20260912180848"
+}

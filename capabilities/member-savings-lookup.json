@@ -1,0 +1,412 @@
+{
+  "schemaVersion": "1.0",
+  "capability": {
+    "id": "member-savings-lookup",
+    "version": "1.0.0",
+    "name": "Member savings balance lookup",
+    "description": "Look up the member by member number and read their savings account balance"
+  },
+  "target": {
+    "appId": "cu-backoffice",
+    "surface": "web",
+    "entrypoint": "{{env.APP_BASE_URL}}/login",
+    "appFingerprint": {
+      "titlePattern": "CU BackOffice -",
+      "markers": []
+    }
+  },
+  "inputs": [
+    {
+      "name": "memberId",
+      "type": "string",
+      "required": true,
+      "pattern": "^\\d+$",
+      "sensitive": false,
+      "example": "12345"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "savingsBalance",
+      "type": "money",
+      "sensitive": true,
+      "sourceStep": "s9"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "intent": "Open the application entrypoint",
+      "action": "navigate",
+      "url": "{{env.APP_BASE_URL}}/login",
+      "sensitive": false,
+      "checkpoint": {
+        "urlMatches": "/login"
+      },
+      "risk": "safe"
+    },
+    {
+      "id": "s2",
+      "intent": "Enter teller username",
+      "action": "fill",
+      "target": {
+        "strategies": [
+          {
+            "kind": "role",
+            "role": "textbox",
+            "name": "Teller ID"
+          },
+          {
+            "kind": "labelText",
+            "value": "Teller ID"
+          },
+          {
+            "kind": "nearText",
+            "value": "Teller ID"
+          },
+          {
+            "kind": "css",
+            "value": "#ctl00_LoginCtl_txtUser"
+          },
+          {
+            "kind": "bbox",
+            "value": [
+              603,
+              135,
+              139,
+              21
+            ]
+          }
+        ],
+        "elementDescription": "textbox \"Teller ID\"",
+        "framePath": []
+      },
+      "value": "{{secrets.tellerUsername}}",
+      "sensitive": true,
+      "risk": "safe"
+    },
+    {
+      "id": "s3",
+      "intent": "Enter teller password",
+      "action": "fill",
+      "target": {
+        "strategies": [
+          {
+            "kind": "role",
+            "role": "textbox",
+            "name": "Passcode"
+          },
+          {
+            "kind": "labelText",
+            "value": "Passcode"
+          },
+          {
+            "kind": "nearText",
+            "value": "Passcode"
+          },
+          {
+            "kind": "css",
+            "value": "#ctl00_LoginCtl_txtPass"
+          },
+          {
+            "kind": "bbox",
+            "value": [
+              603,
+              168,
+              139,
+              21
+            ]
+          }
+        ],
+        "elementDescription": "textbox \"Passcode\"",
+        "framePath": []
+      },
+      "value": "{{secrets.tellerPassword}}",
+      "sensitive": true,
+      "risk": "safe"
+    },
+    {
+      "id": "s4",
+      "intent": "Sign in to teller system",
+      "action": "click",
+      "target": {
+        "strategies": [
+          {
+            "kind": "role",
+            "role": "button",
+            "name": "Sign In"
+          },
+          {
+            "kind": "css",
+            "value": "#ctl00_LoginCtl_btnGo"
+          },
+          {
+            "kind": "bbox",
+            "value": [
+              603,
+              201,
+              58,
+              21
+            ]
+          }
+        ],
+        "elementDescription": "button \"Sign In\"",
+        "framePath": []
+      },
+      "sensitive": false,
+      "checkpoint": {
+        "urlMatches": "/desk"
+      },
+      "risk": "safe"
+    },
+    {
+      "id": "s5",
+      "intent": "Navigate to member search",
+      "action": "click",
+      "target": {
+        "strategies": [
+          {
+            "kind": "role",
+            "role": "link",
+            "name": "Member Search"
+          },
+          {
+            "kind": "css",
+            "value": "#ctl00_Nav_lnkSearch"
+          },
+          {
+            "kind": "bbox",
+            "value": [
+              84,
+              34,
+              89,
+              16
+            ]
+          }
+        ],
+        "elementDescription": "link \"Member Search\"",
+        "framePath": []
+      },
+      "sensitive": false,
+      "checkpoint": {
+        "urlMatches": "/members"
+      },
+      "risk": "safe"
+    },
+    {
+      "id": "s6",
+      "intent": "Input member number for search",
+      "action": "fill",
+      "target": {
+        "strategies": [
+          {
+            "kind": "nearText",
+            "value": "Member Number"
+          },
+          {
+            "kind": "css",
+            "value": "#ctl00_MbrSrch_txtNum"
+          },
+          {
+            "kind": "bbox",
+            "value": [
+              128,
+              106,
+              97,
+              21
+            ]
+          }
+        ],
+        "elementDescription": "textbox near \"Member Number\"",
+        "framePath": []
+      },
+      "value": "{{inputs.memberId}}",
+      "sensitive": false,
+      "risk": "safe"
+    },
+    {
+      "id": "s7",
+      "intent": "Perform member search",
+      "action": "click",
+      "target": {
+        "strategies": [
+          {
+            "kind": "role",
+            "role": "button",
+            "name": "Search"
+          },
+          {
+            "kind": "nearText",
+            "value": "Member Number"
+          },
+          {
+            "kind": "css",
+            "value": "#ctl00_MbrSrch_btnFind"
+          },
+          {
+            "kind": "bbox",
+            "value": [
+              237,
+              106,
+              58,
+              21
+            ]
+          }
+        ],
+        "elementDescription": "button \"Search\"",
+        "framePath": []
+      },
+      "sensitive": false,
+      "risk": "safe"
+    },
+    {
+      "id": "s8",
+      "intent": "Access member details for Alvarez, Maria",
+      "action": "click",
+      "target": {
+        "strategies": [
+          {
+            "kind": "role",
+            "role": "link",
+            "name": "Alvarez, Maria"
+          },
+          {
+            "kind": "nearText",
+            "value": "{{inputs.memberId}}"
+          },
+          {
+            "kind": "css",
+            "value": "#ctl00_MbrGrd_r0_c1 > font > a"
+          },
+          {
+            "kind": "bbox",
+            "value": [
+              274,
+              201,
+              80,
+              16
+            ]
+          }
+        ],
+        "elementDescription": "link \"Alvarez, Maria\"",
+        "framePath": []
+      },
+      "sensitive": false,
+      "checkpoint": {
+        "urlMatches": "/members/{{inputs.memberId}}"
+      },
+      "risk": "safe"
+    },
+    {
+      "id": "s9",
+      "intent": "Record the savings account balance of the member",
+      "action": "extract",
+      "target": {
+        "strategies": [
+          {
+            "kind": "nearText",
+            "value": "Savings"
+          },
+          {
+            "kind": "css",
+            "value": "#ctl00_AcctGrd_r0_c2 > font"
+          },
+          {
+            "kind": "bbox",
+            "value": [
+              640,
+              302,
+              57,
+              16
+            ]
+          }
+        ],
+        "elementDescription": "font near \"Savings\"",
+        "framePath": []
+      },
+      "sensitive": false,
+      "outputName": "savingsBalance",
+      "extractPattern": "\\$[\\d,]+\\.\\d{2}",
+      "risk": "safe"
+    }
+  ],
+  "outcomes": [
+    {
+      "code": "MEMBER_NOT_FOUND",
+      "terminal": true,
+      "description": "The member with ID 99999 could not be found in the system.",
+      "detector": {
+        "textPresent": "No records found."
+      }
+    }
+  ],
+  "recoveries": [
+    {
+      "id": "maintenance-interstitial",
+      "appliesTo": "global",
+      "detector": {
+        "elementVisible": {
+          "kind": "role",
+          "role": "dialog",
+          "name": "System Notice"
+        }
+      },
+      "action": {
+        "kind": "dismiss",
+        "target": {
+          "strategies": [
+            {
+              "kind": "role",
+              "role": "button",
+              "name": "OK"
+            },
+            {
+              "kind": "css",
+              "value": "#ctl00_Notice_btnOk"
+            }
+          ],
+          "elementDescription": "OK button on the maintenance notice dialog",
+          "framePath": []
+        }
+      },
+      "maxAttempts": 2
+    },
+    {
+      "id": "transient-slow-load",
+      "appliesTo": "global",
+      "detector": {
+        "textPresent": "Loading, please wait"
+      },
+      "action": {
+        "kind": "waitRetry",
+        "backoffMs": 2500
+      },
+      "maxAttempts": 3
+    }
+  ],
+  "successCheckpoint": {
+    "urlMatches": "/members/{{inputs.memberId}}"
+  },
+  "policy": {
+    "requiredOrigins": [
+      "http://localhost:4600"
+    ],
+    "allowedActionKinds": [
+      "navigate",
+      "fill",
+      "click",
+      "extract"
+    ],
+    "riskLevel": "readonly",
+    "unattendedReplay": true
+  },
+  "provenance": {
+    "provider": "openai",
+    "model": "gpt-4o",
+    "runId": "disc_20260912173144",
+    "recordedAt": "2026-09-12T17:31:59.793Z",
+    "reviewStatus": "approved",
+    "reviewedBy": "operator-jsmith",
+    "reviewedAt": "2026-09-12T17:36:57.490Z"
+  }
+}

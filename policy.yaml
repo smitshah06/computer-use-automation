@@ -1,0 +1,25 @@
+# Global allowlist and budgets. Deny by default: anything not listed here is
+# refused at the SurfaceDriver chokepoint, regardless of what the model asks for.
+allowlist:
+  origins:
+    - http://localhost:4600      # mock CU back-office (the only permitted app)
+
+actionKinds: [navigate, click, fill, select, press, extract]
+
+risky:
+  discoveryRequiresConfirmation: true        # a human approves every mutating action while recording
+  unattendedRequiresApprovedArtifact: true   # replay may auto-run risky steps only for reviewed artifacts
+
+budgets:
+  discoveryMaxTurns: 40
+  stepTimeoutMs: 15000
+  runTimeoutMs: 300000
+  maxStepAttempts: 3
+
+escalation:
+  operatorPort: 4700
+  interventionTtlMinutes: 30
+
+redaction:
+  maskReplacement: "***"
+  extraSecretEnvPrefixes: ["SCRIBE_SECRET_"]

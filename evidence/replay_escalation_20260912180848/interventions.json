@@ -1,0 +1,26 @@
+[
+  {
+    "request": {
+      "id": "iv_replay_escalation_20260912180848_1",
+      "runId": "replay_escalation_20260912180848",
+      "type": "assist",
+      "capabilityId": "member-savings-lookup",
+      "reason": "urlMatches(/desk) — observed: checkpoint not satisfied",
+      "stepId": "s4",
+      "intent": "Sign in to teller system",
+      "currentUrl": "http://localhost:4600/login?expired=1",
+      "screenshotPath": "screenshots/004_s4_intervention.png",
+      "requestedAt": "2026-09-12T18:08:52.174Z",
+      "expiresAt": "2026-09-12T18:38:52.174Z"
+    },
+    "status": "resolved",
+    "claimedBy": "operator-jsmith",
+    "claimedAt": "2026-09-12T18:08:52.221Z",
+    "resolution": {
+      "disposition": "completed_step",
+      "operator": "operator-jsmith",
+      "note": "re-authenticated in the live session; step's own checkpoint should now hold"
+    },
+    "resolvedAt": "2026-09-12T18:08:52.299Z"
+  }
+]

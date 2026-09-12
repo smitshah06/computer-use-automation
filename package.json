@@ -1,0 +1,44 @@
+{
+  "name": "scribe",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Computer-use automation system: LLM discovery, typed capability artifacts, deterministic replay, human-in-the-loop escalation",
+  "type": "module",
+  "engines": {
+    "node": ">=18.18"
+  },
+  "scripts": {
+    "target": "tsx src/target-app/server.ts",
+    "discover": "tsx src/cli/index.ts discover",
+    "replay": "tsx src/cli/index.ts replay",
+    "approve": "tsx src/cli/index.ts approve",
+    "catalog": "tsx src/cli/index.ts catalog",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src test && node scripts/depcheck.mjs",
+    "depcheck": "node scripts/depcheck.mjs",
+    "test": "vitest run",
+    "test:unit": "vitest run test/unit",
+    "test:integration": "vitest run test/integration"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "commander": "^12.1.0",
+    "ejs": "^3.1.10",
+    "express": "^4.21.2",
+    "openai": "^4.77.0",
+    "playwright": "^1.49.1",
+    "yaml": "^2.6.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@types/ejs": "^3.1.5",
+    "@types/express": "^4.17.21",
+    "@types/node": "^18.19.68",
+    "eslint": "^9.17.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.1",
+    "vitest": "^2.1.8"
+  }
+}

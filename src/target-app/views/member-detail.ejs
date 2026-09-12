@@ -1,0 +1,37 @@
+<%- include('partials/top', { title: 'Member Profile', nav: true, notice: locals.notice }) %>
+<table width="100%" border="0" cellpadding="8" cellspacing="0"><tr><td>
+  <font face="Tahoma" size="3"><b>Member Profile</b></font>
+  <br><br>
+  <table border="0" cellpadding="0" cellspacing="0"><tr><td>
+    <table border="0" cellpadding="5" cellspacing="1" bgcolor="#9AA7B8">
+      <tr bgcolor="#D6DEEA"><td colspan="2"><font face="Tahoma" size="2"><b>Profile</b></font></td></tr>
+      <tr bgcolor="#FFFFFF"><td><font face="Tahoma" size="2">Member No</font></td>
+        <td id="ctl00_Det_lblNum"><font face="Tahoma" size="2"><%= member.id %></font></td></tr>
+      <tr bgcolor="#FFFFFF"><td><font face="Tahoma" size="2">Name</font></td>
+        <td id="ctl00_Det_lblName"><font face="Tahoma" size="2"><%= member.name %></font></td></tr>
+      <tr bgcolor="#FFFFFF"><td><font face="Tahoma" size="2">Status</font></td>
+        <td id="ctl00_Det_lblStatus"><font face="Tahoma" size="2"><%= member.status %></font></td></tr>
+      <tr bgcolor="#FFFFFF"><td><font face="Tahoma" size="2">Member Since</font></td>
+        <td id="ctl00_Det_lblJoined"><font face="Tahoma" size="2"><%= member.joined %></font></td></tr>
+    </table>
+  </td></tr></table>
+  <br>
+  <font face="Tahoma" size="2"><b>Accounts</b></font>
+  <table id="ctl00_AcctGrd" border="0" cellpadding="5" cellspacing="1" bgcolor="#9AA7B8" width="55%">
+    <tr bgcolor="#D6DEEA">
+      <td><font face="Tahoma" size="2"><b>Type</b></font></td>
+      <td><font face="Tahoma" size="2"><b>Account No</b></font></td>
+      <td align="right"><font face="Tahoma" size="2"><b>Balance</b></font></td>
+    </tr>
+    <% member.accounts.forEach(function(a, i) { %>
+    <tr bgcolor="#FFFFFF">
+      <td id="ctl00_AcctGrd_r<%= i %>_c0"><font face="Tahoma" size="2"><%= a.type %></font></td>
+      <td id="ctl00_AcctGrd_r<%= i %>_c1"><font face="Tahoma" size="2"><%= a.number %></font></td>
+      <td id="ctl00_AcctGrd_r<%= i %>_c2" align="right"><font face="Tahoma" size="2"><%= a.balance %></font></td>
+    </tr>
+    <% }) %>
+  </table>
+  <br>
+  <font face="Tahoma" size="2"><a id="ctl00_Det_lnkNew" href="/members/<%= member.id %>/accounts/new">Open Sub-Account</a></font>
+</td></tr></table>
+<%- include('partials/bottom') %>

@@ -1,0 +1,6 @@
+{
+  "status": "recorded",
+  "summary": "Successfully retrieved the savings account balance for member number 12345.",
+  "turns": 9,
+  "capabilityId": "member-savings-lookup"
+}

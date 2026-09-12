@@ -1,0 +1,46 @@
+{"seq":1,"ts":"2026-09-12T18:08:48.094Z","actor":"replay","type":"run_start","capabilityId":"member-savings-lookup","capabilityVersion":"1.0.0","params":{"memberId":"12345"},"reviewStatus":"approved"}
+{"seq":2,"ts":"2026-09-12T18:08:48.770Z","actor":"replay","type":"act_navigate","kind":"navigate","phase":"replay","risk":"safe","intent":"open the capability entrypoint","url":"http://localhost:4600/login"}
+{"seq":3,"ts":"2026-09-12T18:08:48.801Z","actor":"replay","type":"fingerprint_ok","entrypoint":"http://localhost:4600/login"}
+{"seq":4,"ts":"2026-09-12T18:08:48.802Z","actor":"replay","type":"step_start","stepId":"s1","intent":"Open the application entrypoint","action":"navigate"}
+{"seq":5,"ts":"2026-09-12T18:08:48.832Z","actor":"replay","type":"act_navigate","kind":"navigate","phase":"replay","risk":"safe","stepId":"s1","intent":"Open the application entrypoint","url":"http://localhost:4600/login"}
+{"seq":6,"ts":"2026-09-12T18:08:48.888Z","actor":"replay","type":"step_done","stepId":"s1","strategyRank":null,"attempts":1,"recoveriesApplied":[]}
+{"seq":7,"ts":"2026-09-12T18:08:48.889Z","actor":"replay","type":"step_start","stepId":"s2","intent":"Enter teller username","action":"fill"}
+{"seq":8,"ts":"2026-09-12T18:08:48.948Z","actor":"replay","type":"act_fill","kind":"fill","phase":"replay","risk":"safe","stepId":"s2","intent":"Enter teller username","value":"***","target":"textbox \"Teller ID\"","strategyRank":0,"strategyKind":"role","extracted":"***"}
+{"seq":9,"ts":"2026-09-12T18:08:48.967Z","actor":"replay","type":"step_done","stepId":"s2","strategyRank":0,"strategyKind":"role","attempts":1,"recoveriesApplied":[]}
+{"seq":10,"ts":"2026-09-12T18:08:48.967Z","actor":"replay","type":"step_start","stepId":"s3","intent":"Enter teller password","action":"fill"}
+{"seq":11,"ts":"2026-09-12T18:08:49.012Z","actor":"replay","type":"act_fill","kind":"fill","phase":"replay","risk":"safe","stepId":"s3","intent":"Enter teller password","value":"***","target":"textbox \"Passcode\"","strategyRank":0,"strategyKind":"role","extracted":"***"}
+{"seq":12,"ts":"2026-09-12T18:08:49.034Z","actor":"replay","type":"step_done","stepId":"s3","strategyRank":0,"strategyKind":"role","attempts":1,"recoveriesApplied":[]}
+{"seq":13,"ts":"2026-09-12T18:08:49.035Z","actor":"replay","type":"step_start","stepId":"s4","intent":"Sign in to teller system","action":"click"}
+{"seq":14,"ts":"2026-09-12T18:08:49.101Z","actor":"replay","type":"act_click","kind":"click","phase":"replay","risk":"safe","stepId":"s4","intent":"Sign in to teller system","target":"button \"Sign In\"","strategyRank":0,"strategyKind":"role"}
+{"seq":15,"ts":"2026-09-12T18:08:52.174Z","actor":"system","type":"assist","id":"iv_replay_escalation_20260912180848_1","runId":"replay_escalation_20260912180848","capabilityId":"member-savings-lookup","reason":"urlMatches(/desk) — observed: checkpoint not satisfied","stepId":"s4","intent":"Sign in to teller system","currentUrl":"http://localhost:4600/login?expired=1","screenshotPath":"screenshots/004_s4_intervention.png","requestedAt":"2026-09-12T18:08:52.174Z","expiresAt":"2026-09-12T18:38:52.174Z"}
+{"seq":16,"ts":"2026-09-12T18:08:52.175Z","actor":"system","type":"control_transition","from":"agent","to":"paused","by":"system","reason":"urlMatches(/desk) — observed: checkpoint not satisfied"}
+{"seq":17,"ts":"2026-09-12T18:08:52.221Z","actor":"system","type":"control_transition","from":"paused","to":"human","by":"operator-jsmith","reason":"claimed intervention iv_replay_escalation_20260912180848_1"}
+{"seq":18,"ts":"2026-09-12T18:08:52.227Z","actor":"human","type":"act_fill","kind":"fill","phase":"human","risk":"safe","intent":"human: re-enter teller id","value":"***","target":"textbox \"Teller ID\"","strategyRank":0,"strategyKind":"role"}
+{"seq":19,"ts":"2026-09-12T18:08:52.230Z","actor":"human","type":"human_action","kind":"input","url":"http://localhost:4600/login?expired=1","tag":"input","id":"ctl00_LoginCtl_txtUser","name":"user","value":"***"}
+{"seq":20,"ts":"2026-09-12T18:08:52.240Z","actor":"human","type":"act_fill","kind":"fill","phase":"human","risk":"safe","intent":"human: re-enter passcode","value":"***","target":"textbox \"Passcode\"","strategyRank":0,"strategyKind":"role","extracted":"***"}
+{"seq":21,"ts":"2026-09-12T18:08:52.275Z","actor":"human","type":"human_action","kind":"input","url":"http://localhost:4600/login?expired=1","tag":"input","id":"ctl00_LoginCtl_txtPass","name":"pass","value":"***"}
+{"seq":22,"ts":"2026-09-12T18:08:52.277Z","actor":"human","type":"human_action","kind":"click","url":"http://localhost:4600/login?expired=1","tag":"input","id":"ctl00_LoginCtl_btnGo"}
+{"seq":23,"ts":"2026-09-12T18:08:52.277Z","actor":"human","type":"human_action","kind":"submit","url":"http://localhost:4600/login?expired=1","tag":"form"}
+{"seq":24,"ts":"2026-09-12T18:08:52.296Z","actor":"human","type":"human_action","kind":"navigate","url":"http://localhost:4600/desk"}
+{"seq":25,"ts":"2026-09-12T18:08:52.297Z","actor":"human","type":"act_click","kind":"click","phase":"human","risk":"safe","intent":"human: sign in again","target":"button \"Sign In\"","strategyRank":0,"strategyKind":"role"}
+{"seq":26,"ts":"2026-09-12T18:08:52.299Z","actor":"system","type":"control_transition","from":"human","to":"agent","by":"operator-jsmith","reason":"intervention iv_replay_escalation_20260912180848_1: completed_step"}
+{"seq":27,"ts":"2026-09-12T18:08:52.299Z","actor":"operator","type":"intervention_resolved","id":"iv_replay_escalation_20260912180848_1","disposition":"completed_step","operator":"operator-jsmith","note":"re-authenticated in the live session; step's own checkpoint should now hold"}
+{"seq":28,"ts":"2026-09-12T18:08:52.299Z","actor":"operator","type":"step_completed_by_human","stepId":"s4"}
+{"seq":29,"ts":"2026-09-12T18:08:52.299Z","actor":"replay","type":"step_done","stepId":"s4","strategyRank":0,"strategyKind":"role","attempts":1,"recoveriesApplied":[]}
+{"seq":30,"ts":"2026-09-12T18:08:52.299Z","actor":"replay","type":"step_start","stepId":"s5","intent":"Navigate to member search","action":"click"}
+{"seq":31,"ts":"2026-09-12T18:08:52.349Z","actor":"replay","type":"act_click","kind":"click","phase":"replay","risk":"safe","stepId":"s5","intent":"Navigate to member search","target":"link \"Member Search\"","strategyRank":0,"strategyKind":"role"}
+{"seq":32,"ts":"2026-09-12T18:08:52.385Z","actor":"replay","type":"step_done","stepId":"s5","strategyRank":0,"strategyKind":"role","attempts":1,"recoveriesApplied":[]}
+{"seq":33,"ts":"2026-09-12T18:08:52.385Z","actor":"replay","type":"step_start","stepId":"s6","intent":"Input member number for search","action":"fill"}
+{"seq":34,"ts":"2026-09-12T18:08:52.395Z","actor":"replay","type":"act_fill","kind":"fill","phase":"replay","risk":"safe","stepId":"s6","intent":"Input member number for search","value":"12345","target":"textbox near \"Member Number\"","strategyRank":0,"strategyKind":"nearText"}
+{"seq":35,"ts":"2026-09-12T18:08:52.416Z","actor":"replay","type":"step_done","stepId":"s6","strategyRank":0,"strategyKind":"nearText","attempts":1,"recoveriesApplied":[]}
+{"seq":36,"ts":"2026-09-12T18:08:52.416Z","actor":"replay","type":"step_start","stepId":"s7","intent":"Perform member search","action":"click"}
+{"seq":37,"ts":"2026-09-12T18:08:52.461Z","actor":"replay","type":"act_click","kind":"click","phase":"replay","risk":"safe","stepId":"s7","intent":"Perform member search","target":"button \"Search\"","strategyRank":0,"strategyKind":"role"}
+{"seq":38,"ts":"2026-09-12T18:08:52.502Z","actor":"replay","type":"step_done","stepId":"s7","strategyRank":0,"strategyKind":"role","attempts":1,"recoveriesApplied":[]}
+{"seq":39,"ts":"2026-09-12T18:08:52.502Z","actor":"replay","type":"step_start","stepId":"s8","intent":"Access member details for Alvarez, Maria","action":"click"}
+{"seq":40,"ts":"2026-09-12T18:08:52.552Z","actor":"replay","type":"act_click","kind":"click","phase":"replay","risk":"safe","stepId":"s8","intent":"Access member details for Alvarez, Maria","target":"link \"Alvarez, Maria\"","strategyRank":0,"strategyKind":"role"}
+{"seq":41,"ts":"2026-09-12T18:08:52.587Z","actor":"replay","type":"step_done","stepId":"s8","strategyRank":0,"strategyKind":"role","attempts":1,"recoveriesApplied":[]}
+{"seq":42,"ts":"2026-09-12T18:08:52.587Z","actor":"replay","type":"step_start","stepId":"s9","intent":"Record the savings account balance of the member","action":"extract"}
+{"seq":43,"ts":"2026-09-12T18:08:52.602Z","actor":"replay","type":"act_extract","kind":"extract","phase":"replay","risk":"safe","stepId":"s9","intent":"Record the savings account balance of the member","value":"***","target":"font near \"Savings\"","strategyRank":0,"strategyKind":"nearText","extracted":"***"}
+{"seq":44,"ts":"2026-09-12T18:08:52.619Z","actor":"replay","type":"step_done","stepId":"s9","strategyRank":0,"strategyKind":"nearText","attempts":1,"recoveriesApplied":[]}
+{"seq":45,"ts":"2026-09-12T18:08:52.620Z","actor":"replay","type":"success_checkpoint_ok"}
+{"seq":46,"ts":"2026-09-12T18:08:52.642Z","actor":"replay","type":"run_finished","status":"escalated"}

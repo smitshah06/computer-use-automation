@@ -1,0 +1,6 @@
+{
+  "status": "business_outcome",
+  "summary": "The member with ID 99999 could not be found in the system.",
+  "turns": 7,
+  "capabilityId": "member-savings-lookup"
+}

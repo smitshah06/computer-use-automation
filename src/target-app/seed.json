@@ -1,0 +1,60 @@
+{
+  "tellers": [
+    { "username": "teller1", "password": "Demo!Pass1", "name": "D. Ortiz" }
+  ],
+  "members": [
+    {
+      "id": "12345",
+      "name": "Alvarez, Maria",
+      "status": "Active",
+      "joined": "03/11/2014",
+      "restricted": false,
+      "accounts": [
+        { "type": "Savings", "number": "SV-8891-01", "balance": "$1,204.55" },
+        { "type": "Checking", "number": "CK-8891-02", "balance": "$310.20" }
+      ]
+    },
+    {
+      "id": "23456",
+      "name": "Lee, James",
+      "status": "Active",
+      "joined": "07/29/2009",
+      "restricted": false,
+      "accounts": [
+        { "type": "Savings", "number": "SV-4410-01", "balance": "$8,872.10" },
+        { "type": "Checking", "number": "CK-4410-02", "balance": "$1,502.75" }
+      ]
+    },
+    {
+      "id": "34567",
+      "name": "Nguyen, Thu",
+      "status": "Active",
+      "joined": "01/05/2021",
+      "restricted": false,
+      "accounts": [
+        { "type": "Savings", "number": "SV-7723-01", "balance": "$96.40" }
+      ]
+    },
+    {
+      "id": "45678",
+      "name": "Okafor, Chidi",
+      "status": "Dormant",
+      "joined": "10/17/2011",
+      "restricted": false,
+      "accounts": [
+        { "type": "Savings", "number": "SV-3306-01", "balance": "$12,940.00" },
+        { "type": "Checking", "number": "CK-3306-02", "balance": "$88.05" }
+      ]
+    },
+    {
+      "id": "66666",
+      "name": "Chen, Robert",
+      "status": "Active",
+      "joined": "05/02/2018",
+      "restricted": true,
+      "accounts": [
+        { "type": "Savings", "number": "SV-9017-01", "balance": "$54,300.00" }
+      ]
+    }
+  ]
+}

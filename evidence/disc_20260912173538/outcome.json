@@ -1,0 +1,8 @@
+{
+  "code": "MEMBER_NOT_FOUND",
+  "terminal": true,
+  "description": "The member with ID 99999 could not be found in the system.",
+  "detector": {
+    "textPresent": "No records found."
+  }
+}
