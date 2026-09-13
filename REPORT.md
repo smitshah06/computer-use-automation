@@ -202,6 +202,39 @@ catalog` prints the contract view; `replay --capability <id> --param k=v` is the
 invocation). The `draft → approved` state exists because the risky-action gate requires it — the
 confidence-*scoring* half of that stretch item is not built.
 
-Next, in order: CDP-based remote operator takeover; assisted-fallback repair proposals as
-reviewed artifact patches; per-operator signing keys; a desktop (UIA/AX) driver behind the
-existing `SurfaceDriver` seam.
+With more time, in rough order of value:
+
+**Security & trust.** Move the redirect backstop from detect-and-kill to true prevention by
+intercepting at CDP `Fetch.requestPaused`, which — unlike Playwright routes — pauses every
+redirect hop at request stage before egress (Chromium-only; a driver-internal rewrite behind the
+same seam). Replace the shared console token with per-operator OIDC and sign dispositions with
+per-operator KMS keys (ES256): an auditor then proves *which teller* approved the submit, where
+HMAC only proves "someone holding the shared key". Add content-aware DLP before an evidence
+bundle seals — Luhn-checked PANs, SSN shapes, NER over `run.jsonl`, an OCR pass over
+screenshots — catching sensitive values the artifact never declared.
+
+**Robustness at scale.** A stability harness replaying each capability ~50× across injected
+fault mixes, publishing a per-step flakiness score into the locator-health report — a step that
+needs its third-rank CSS locator in 20% of runs gets flagged before it breaks. Canary
+re-validation on `appFingerprint` drift: read-only capabilities auto-run against a canary tenant
+and failing artifacts are quarantined rather than discovered broken in production.
+
+**Capability lifecycle.** Assisted fallback as *reviewed patches*: when one step's locator dies,
+invoke the LLM for that step only and emit a proposed artifact diff (new strategy ranked above
+the broken one) requiring human approval — bounded re-discovery as a code-reviewed change, never
+silent self-healing. A registry replacing files-in-repo: content-addressed artifacts, signed at
+approval time, with `schemaVersion` migration scripts replay refuses to bypass. Record-time
+confidence scoring (locator depth + checkpoint specificity) to complete the stretch item's
+unbuilt half.
+
+**Surfaces.** A desktop UIA/AX driver — the OS accessibility tree yields the same
+`{role, name, value, bbox}` node shape, so web-recorded semantic strategies replay against a
+WinForms teller app — and a vision driver resolving via `elementDescription` + recorded bbox
+hints for tree-less surfaces (Citrix/VDI). Both slot behind `SurfaceDriver`; the artifact
+already records what they need.
+
+**Operations.** Remote operator takeover via CDP screencast/noVNC so the same-live-session
+property survives the operator being remote; OpenTelemetry spans mapping 1:1 onto the existing
+`run.jsonl` events; secrets from a manager instead of env; and extending the custody hash chain
+to cover each `human_action` event, so a tampered keystroke log breaks the chain exactly as a
+tampered transition does.
