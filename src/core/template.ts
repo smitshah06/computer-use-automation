@@ -10,15 +10,20 @@ export interface TemplateContext {
 
 const REF_RE = /\{\{\s*(inputs|secrets|env)\.([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g;
 
+// Fail closed: only own, string-valued properties of the context tables
+// resolve. Without the hasOwn check a ref like {{inputs.constructor}} would
+// resolve through the prototype chain instead of throwing.
+function lookup(ctx: TemplateContext, scope: string, name: string): string {
+  const table = ctx[scope as keyof TemplateContext];
+  const v: unknown = Object.hasOwn(table, name) ? table[name] : undefined;
+  if (typeof v !== "string") {
+    throw new Error(`unresolved template reference {{${scope}.${name}}}`);
+  }
+  return v;
+}
+
 export function resolveTemplate(text: string, ctx: TemplateContext): string {
-  return text.replace(REF_RE, (_m, scope: string, name: string) => {
-    const table = ctx[scope as keyof TemplateContext];
-    const v = table[name];
-    if (v === undefined) {
-      throw new Error(`unresolved template reference {{${scope}.${name}}}`);
-    }
-    return v;
-  });
+  return text.replace(REF_RE, (_m, scope: string, name: string) => lookup(ctx, scope, name));
 }
 
 // Resolution variant for strings that will be compiled as regular expressions
@@ -30,14 +35,7 @@ export function escapeRegExp(text: string): string {
 }
 
 export function resolveTemplateInRegex(text: string, ctx: TemplateContext): string {
-  return text.replace(REF_RE, (_m, scope: string, name: string) => {
-    const table = ctx[scope as keyof TemplateContext];
-    const v = table[name];
-    if (v === undefined) {
-      throw new Error(`unresolved template reference {{${scope}.${name}}}`);
-    }
-    return escapeRegExp(v);
-  });
+  return text.replace(REF_RE, (_m, scope: string, name: string) => escapeRegExp(lookup(ctx, scope, name)));
 }
 
 export function findUnresolved(text: string): string[] {

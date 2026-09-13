@@ -43,6 +43,9 @@ export class OpenAIProvider implements LLMProvider {
         function: { name: t.name, description: t.description, parameters: t.inputSchema },
       })),
       tool_choice: "required",
+      // one decision per turn: the loop is observe -> decide -> act, and a
+      // second tool call in the same response would be silently dropped
+      parallel_tool_calls: false,
     });
     const msg = res.choices[0]?.message;
     const call = msg?.tool_calls?.[0];

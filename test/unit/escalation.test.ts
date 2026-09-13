@@ -4,9 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { RunController } from "../../src/escalation/controller";
 import { InterventionStore } from "../../src/escalation/store";
+import { OperatorGateway } from "../../src/escalation/gateway";
 import { RunLogger } from "../../src/evidence/run-logger";
 import { Redactor } from "../../src/evidence/redactor";
 import { nowIso, type InterventionRequest } from "../../src/core";
+import type { SurfaceDriver } from "../../src/surface";
 
 let seq = 0;
 function mkLogger(): RunLogger {
@@ -58,6 +60,33 @@ describe("RunController control-ownership state machine", () => {
   });
 });
 
+describe("OperatorGateway control semantics", () => {
+  const stubDriver = {
+    startHumanCapture: async () => {},
+    stopHumanCapture: async () => {},
+  } as unknown as SurfaceDriver;
+
+  it("returns control to the agent on deny/expired; only abort is terminal", async () => {
+    const gw = new OperatorGateway(stubDriver, mkLogger());
+
+    // deny hands control back — the RUN decides what a deny means
+    const p1 = gw.requestIntervention({ ...req("iv_g1"), type: "approval" });
+    gw.claim("iv_g1", "alice");
+    gw.resolve("iv_g1", { disposition: "deny", operator: "alice" });
+    await expect(p1).resolves.toMatchObject({ disposition: "deny" });
+    expect(gw.controller.current).toBe("agent");
+
+    // a continuing run can raise the NEXT intervention without an illegal
+    // aborted -> paused transition (the crash this guards against)
+    const p2 = gw.requestIntervention({ ...req("iv_g2"), type: "approval" });
+    gw.claim("iv_g2", "alice");
+    gw.resolve("iv_g2", { disposition: "abort", operator: "alice" });
+    await expect(p2).resolves.toMatchObject({ disposition: "abort" });
+    expect(gw.controller.current).toBe("aborted");
+    gw.close();
+  });
+});
+
 describe("InterventionStore lifecycle and persistence", () => {
   it("parks the caller until resolve, then persists the full record", async () => {
     const logger = mkLogger();
@@ -103,6 +132,26 @@ describe("InterventionStore lifecycle and persistence", () => {
     store.resolve("iv_4", { disposition: "completed_step", operator: "alice" });
     await expect(pending).resolves.toMatchObject({ disposition: "completed_step" });
     store.close();
+  });
+
+  it("enforces custody: only the claiming operator can resolve", async () => {
+    const store = new InterventionStore(mkLogger());
+    const pending = store.open(req("iv_5"));
+    store.claim("iv_5", "alice");
+    expect(() => store.resolve("iv_5", { disposition: "abort", operator: "mallory" })).toThrow(/claimed by "alice"/);
+    expect(() => store.resolve("iv_5", { disposition: "abort" })).toThrow(/claimed by "alice"/);
+    store.resolve("iv_5", { disposition: "completed_step", operator: "alice" });
+    await expect(pending).resolves.toMatchObject({ disposition: "completed_step" });
+    store.close();
+  });
+
+  it("log payloads cannot clobber the envelope fields of the audit trail", () => {
+    const logger = mkLogger();
+    logger.log("system", "intervention_requested", { request: { type: "approval" }, type: "evil" });
+    const line = JSON.parse(readFileSync(join(logger.runDir, "run.jsonl"), "utf8").trim().split("\n")[0]!);
+    expect(line.type).toBe("intervention_requested"); // envelope wins
+    expect(line.type_).toBe("evil"); // colliding payload key preserved, renamed
+    expect(line.request.type).toBe("approval"); // nested payload untouched
   });
 
   it("resolves with disposition expired when the TTL elapses", async () => {

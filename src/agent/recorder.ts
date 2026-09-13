@@ -1,4 +1,4 @@
-import { nowIso, type ActionKind, type LocatorStrategy, type Risk } from "../core";
+import { nowIso, parameterizeValue, type ActionKind, type LocatorStrategy, type Risk } from "../core";
 import type { TargetSynthesis } from "../surface";
 
 // One successfully executed discovery action, as captured live: the raw value
@@ -68,16 +68,17 @@ export class Recorder {
     return this.acts.length;
   }
 
-  // exact-match parameterization for values the model typed or anchors on
+  // Canonicalize recorded literals back into {{inputs.*}} — exact matches at
+  // any length, embedded occurrences only for values >= 4 chars (so a short
+  // input like "1" cannot corrupt unrelated text). Redaction and reuse are the
+  // same mechanism: an input embedded in a longer recorded string ("member
+  // 12345 lookup", "?q=12345") must not persist either.
   private param(text: string): string {
-    for (const [name, val] of Object.entries(this.spec.inputs)) {
-      if (text === val) return `{{inputs.${name}}}`;
-    }
-    return text;
+    return parameterizeValue(text, this.spec.inputs);
   }
 
-  // URL parameterization: env base-URL prefix, then path segments that equal
-  // an input value
+  // URL parameterization: env base-URL prefix, then input literals in the
+  // path and query (whole segments and embedded occurrences)
   private paramUrl(url: string): string {
     let out = url;
     for (const [name, val] of Object.entries(this.spec.env ?? {})) {

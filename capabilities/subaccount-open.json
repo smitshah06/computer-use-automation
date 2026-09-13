@@ -2,7 +2,7 @@
   "schemaVersion": "1.0",
   "capability": {
     "id": "subaccount-open",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "name": "Open member sub-account",
     "description": "Open a new sub-account (Savings, Checking, or Holiday Club) for a member with a nickname and an initial deposit, submit the application, and return the confirmation number. Mutating: replay pauses for operator approval on the submit step (unattendedReplay=false)."
   },
@@ -524,7 +524,50 @@
       }
     }
   ],
-  "recoveries": [],
+  "recoveries": [
+    {
+      "id": "maintenance-interstitial",
+      "appliesTo": "global",
+      "detector": {
+        "elementVisible": {
+          "kind": "role",
+          "role": "dialog",
+          "name": "System Notice"
+        }
+      },
+      "action": {
+        "kind": "dismiss",
+        "target": {
+          "strategies": [
+            {
+              "kind": "role",
+              "role": "button",
+              "name": "OK"
+            },
+            {
+              "kind": "css",
+              "value": "#ctl00_Notice_btnOk"
+            }
+          ],
+          "elementDescription": "OK button on the maintenance notice dialog",
+          "framePath": []
+        }
+      },
+      "maxAttempts": 2
+    },
+    {
+      "id": "transient-slow-load",
+      "appliesTo": "global",
+      "detector": {
+        "textPresent": "Loading, please wait"
+      },
+      "action": {
+        "kind": "waitRetry",
+        "backoffMs": 2500
+      },
+      "maxAttempts": 3
+    }
+  ],
   "successCheckpoint": {
     "all": [
       {
@@ -556,6 +599,6 @@
     "recordedAt": "2026-09-13T01:42:50.116Z",
     "reviewStatus": "approved",
     "reviewedBy": "operator-jsmith",
-    "reviewedAt": "2026-09-13T01:50:14.395Z"
+    "reviewedAt": "2026-09-13T02:42:35.665Z"
   }
 }

@@ -8,7 +8,13 @@ import type { HumanActionEvent, SurfaceDriver } from "../surface";
 import { RunController } from "./controller";
 import { InterventionStore, type InterventionRecord } from "./store";
 
-const TERMINAL_DISPOSITIONS = new Set(["abort", "deny", "expired"]);
+// Only an explicit abort is terminal for CONTROL. A denied approval or an
+// expired TTL hands control back to the engine, which decides what the
+// disposition means for the RUN (discovery keeps exploring after a deny;
+// replay marks the run aborted itself). Treating deny as a control-abort
+// would wedge the state machine: the next intervention of a continuing run
+// throws "illegal control transition: aborted -> paused".
+const TERMINAL_DISPOSITIONS = new Set(["abort"]);
 
 // Orchestrates a control transfer end to end: pause the run, wait for an
 // operator, record everything the human does in the live session, and hand

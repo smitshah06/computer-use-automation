@@ -194,8 +194,7 @@ export class ReplayEngine {
     const recoveriesApplied: string[] = [];
     for (;;) {
       if (await this.driver.waitForCondition(cond, this.checkpointWaitMs)) {
-        this.logger.log("replay", "success_checkpoint_ok", {});
-        return { status: "success", outputs: this.outputs };
+        return this.succeed();
       }
       if (Date.now() > this.deadline) {
         return {
@@ -219,8 +218,7 @@ export class ReplayEngine {
         if (summary.disposition === "completed_step") {
           if (await this.driver.waitForCondition(cond, this.checkpointWaitMs)) {
             this.logger.log("operator", "step_completed_by_human", { stepId: "success" });
-            this.logger.log("replay", "success_checkpoint_ok", {});
-            return { status: "success", outputs: this.outputs };
+            return this.succeed();
           }
           return {
             status: "hard_failure",
@@ -244,6 +242,27 @@ export class ReplayEngine {
         error: await this.captureError("success", undefined, expected, "success checkpoint not satisfied after all steps"),
       };
     }
+  }
+
+  // "Success" is a contract claim, not just a checkpoint: a run whose success
+  // checkpoint holds but whose declared outputs were never extracted (an
+  // operator hand-back that skipped an extract step, say) must not present
+  // itself to the calling agent as a success with silently-missing fields.
+  private async succeed(): Promise<RunOutcome> {
+    const missing = this.artifact.outputs.map((o) => o.name).filter((n) => this.outputs[n] === undefined);
+    if (missing.length > 0) {
+      return {
+        status: "hard_failure",
+        error: await this.captureError(
+          "success",
+          undefined,
+          `all declared outputs populated (${this.artifact.outputs.map((o) => o.name).join(", ")})`,
+          `success checkpoint holds but output(s) were never extracted: ${missing.join(", ")}`,
+        ),
+      };
+    }
+    this.logger.log("replay", "success_checkpoint_ok", {});
+    return { status: "success", outputs: this.outputs };
   }
 
   private async runStep(step: Step): Promise<RunOutcome | undefined> {
@@ -321,7 +340,10 @@ export class ReplayEngine {
               checkpoint: cond,
             });
             if (dev === "retry" || dev === "retry_reset") {
-              if (dev === "retry_reset") attempts = 0;
+              if (dev === "retry_reset") {
+                attempts = 0;
+                approved = false; // approve_once covers one attempt context, not the post-fix retry
+              }
               continue;
             }
             if (dev === "done") return done();
@@ -369,7 +391,10 @@ export class ReplayEngine {
         checkpoint: step.checkpoint ? materializeCondition(step.checkpoint, this.ctx) : undefined,
       });
       if (dev === "retry" || dev === "retry_reset") {
-        if (dev === "retry_reset") attempts = 0;
+        if (dev === "retry_reset") {
+          attempts = 0;
+          approved = false; // approve_once covers one attempt context, not the post-fix retry
+        }
         continue;
       }
       if (dev === "done") return done();
@@ -422,6 +447,13 @@ export class ReplayEngine {
         return this.hardFailure(step, expected, "operator marked the step complete but its checkpoint still fails");
       }
       if (summary.disposition === "fixed_environment") {
+        // Checkpoint-first, exactly like declared recoveries: if the
+        // operator's fix already restored the step's postcondition,
+        // re-acting would double-apply the step.
+        if (state.checkpoint && (await this.driver.waitForCondition(state.checkpoint, this.checkpointWaitMs))) {
+          this.logger.log("replay", "checkpoint_ok_after_fix", { stepId: step.id });
+          return "done";
+        }
         return "retry_reset";
       }
       this.aborted = true;
@@ -497,7 +529,7 @@ export class ReplayEngine {
       requestedAt: nowIso(),
       expiresAt: new Date(Date.now() + this.config.escalation.interventionTtlMinutes * 60_000).toISOString(),
     };
-    this.logger.log("system", "intervention_requested", { ...request });
+    this.logger.log("system", "intervention_requested", { request });
     const resolution = await this.opts.gateway!.requestIntervention(request);
     this.logger.log("operator", "intervention_resolved", {
       id,

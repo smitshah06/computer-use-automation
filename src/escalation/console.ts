@@ -4,7 +4,13 @@ import express, { type Request, type Response } from "express";
 import type { InterventionResolution } from "../core";
 import type { OperatorGateway } from "./gateway";
 
-const RESOLVABLE = new Set(["fixed_environment", "completed_step", "approve_once", "deny", "abort"]);
+// Dispositions are validated per intervention TYPE on the server, not just in
+// the dashboard UI: "approve_once" against an assist (or "completed_step"
+// against an approval) is a category error, whatever client sent it.
+const DISPOSITIONS_BY_TYPE: Record<string, ReadonlySet<string>> = {
+  assist: new Set(["completed_step", "fixed_environment", "abort"]),
+  approval: new Set(["approve_once", "deny", "abort"]),
+};
 
 export interface ConsoleOptions {
   port: number; // config.escalation.operatorPort
@@ -26,6 +32,16 @@ export class OperatorConsole {
 
   start(): Promise<void> {
     const app = express();
+    // The console binds to 127.0.0.1, but a malicious page can still reach it
+    // via DNS rebinding (attacker hostname resolving to 127.0.0.1). Loopback
+    // requests carry a loopback Host header; anything else is rejected.
+    app.use((req: Request, res: Response, next) => {
+      const host = (req.headers.host ?? "").split(":")[0];
+      if (host !== "127.0.0.1" && host !== "localhost" && host !== "[::1]") {
+        return res.status(403).json({ error: "forbidden host" });
+      }
+      next();
+    });
     app.use(express.json());
 
     app.get("/api/interventions", (_req: Request, res: Response) => {
@@ -44,8 +60,13 @@ export class OperatorConsole {
 
     app.post("/api/interventions/:id/resolve", (req: Request, res: Response) => {
       const { disposition, operator, note } = (req.body ?? {}) as Record<string, unknown>;
-      if (typeof disposition !== "string" || !RESOLVABLE.has(disposition)) {
-        return res.status(400).json({ error: `disposition must be one of: ${[...RESOLVABLE].join(", ")}` });
+      const rec = this.gateway.store.get(String(req.params.id));
+      if (!rec) return res.status(404).json({ error: "unknown intervention" });
+      const allowed = DISPOSITIONS_BY_TYPE[rec.request.type] ?? new Set<string>();
+      if (typeof disposition !== "string" || !allowed.has(disposition)) {
+        return res
+          .status(400)
+          .json({ error: `disposition for a ${rec.request.type} intervention must be one of: ${[...allowed].join(", ")}` });
       }
       // Dispositions are accountability records: an anonymous hand-back would
       // leave a hole in the chain of custody.
@@ -80,8 +101,11 @@ export class OperatorConsole {
       res.type("html").send(DASHBOARD_HTML);
     });
 
-    return new Promise((resolvePromise) => {
+    return new Promise((resolvePromise, rejectPromise) => {
       this.server = createServer(app);
+      // Surface bind failures (EADDRINUSE from a concurrent run) instead of
+      // resolving a console that is not actually listening.
+      this.server.once("error", (err) => rejectPromise(err));
       this.server.listen(this.opts.port, "127.0.0.1", () => resolvePromise());
     });
   }

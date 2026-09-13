@@ -52,7 +52,6 @@ type ExecOutcome = { result: string } | { terminal: DiscoveryOutput };
 // resolved locally at act time and never enter the transcript.
 export class DiscoveryEngine {
   private readonly recorder: Recorder;
-  private readonly system: string;
   private ctx: TemplateContext = { inputs: {}, secrets: {}, env: {} };
   private secretValues: string[] = [];
   private readonly sigCount = new Map<string, number>();
@@ -80,12 +79,6 @@ export class DiscoveryEngine {
       provider: provider.name,
       model: provider.model,
       runId: logger.runId,
-    });
-    this.system = systemPrompt({
-      goal: spec.goal,
-      inputs: spec.inputs,
-      secretNames: [], // filled in run() once secrets are loaded
-      origins: [new URL(spec.entryUrl).origin],
     });
   }
 
@@ -266,7 +259,22 @@ export class DiscoveryEngine {
         };
       }
       const disposition = await this.requestApproval(res.needsApproval, a.intent);
-      if (disposition !== "approve_once") return { result: `operator declined the action (${disposition})` };
+      if (disposition === "abort") {
+        // Explicit operator abort is terminal for the RUN, not just the action.
+        await this.captureStuck("operator aborted at a risky-action approval");
+        return {
+          terminal: {
+            status: "stuck",
+            summary: `aborted by operator at the approval gate for: ${a.intent}`,
+            turns: turn,
+          },
+        };
+      }
+      if (disposition !== "approve_once") {
+        // deny / expired: the action stays blocked, the run continues — the
+        // model may take a different path or finish(stuck).
+        return { result: `operator declined the action (${disposition}) — do not retry it; choose a different approach or finish(stuck)` };
+      }
       res = await this.driver.act({ ...req, approved: true });
     }
     if (res.denied) return { result: `policy denied: ${res.denied}` };
@@ -416,7 +424,7 @@ export class DiscoveryEngine {
       requestedAt: nowIso(),
       expiresAt: new Date(Date.now() + this.config.escalation.interventionTtlMinutes * 60_000).toISOString(),
     };
-    this.logger.log("system", "intervention_requested", { ...request });
+    this.logger.log("system", "intervention_requested", { request });
     const resolution = await this.opts.gateway!.requestIntervention(request);
     this.logger.log("operator", "intervention_resolved", {
       id,

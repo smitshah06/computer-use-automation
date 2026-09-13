@@ -68,6 +68,14 @@ export class InterventionStore {
     if (rec.status !== "claimed") {
       throw new Error(`intervention ${id} is ${rec.status}; claim it before resolving`);
     }
+    // Custody: the operator who took control is the one accountable for the
+    // hand-back. A different (or anonymous) resolver would break the chain.
+    if (!resolution.operator || resolution.operator !== rec.claimedBy) {
+      throw new Error(
+        `intervention ${id} is claimed by "${rec.claimedBy}"; ` +
+          `only they can resolve it (got "${resolution.operator ?? "no operator"}")`,
+      );
+    }
     rec.status = "resolved";
     rec.resolution = resolution;
     rec.resolvedAt = nowIso();

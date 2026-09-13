@@ -113,6 +113,12 @@ describe("templating and parameterization", () => {
     expect(() => resolveTemplate("{{inputs.nope}}", ctx)).toThrow(/unresolved/);
   });
 
+  it("fails closed on prototype-chain refs — only own string properties resolve", () => {
+    expect(() => resolveTemplate("{{inputs.constructor}}", ctx)).toThrow(/unresolved/);
+    expect(() => resolveTemplate("{{inputs.__proto__}}", ctx)).toThrow(/unresolved/);
+    expect(() => resolveTemplateInRegex("{{env.toString}}", ctx)).toThrow(/unresolved/);
+  });
+
   it("parameterizes recorded literals (exact and embedded)", () => {
     expect(parameterizeValue("12345", ctx.inputs)).toBe("{{inputs.memberId}}");
     expect(parameterizeValue("member 12345 lookup", ctx.inputs)).toBe("member {{inputs.memberId}} lookup");

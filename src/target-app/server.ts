@@ -175,9 +175,17 @@ export function createTargetApp() {
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
 if (isMain) {
   const port = Number(process.env.PORT ?? 4600);
-  createTargetApp().listen(port, () => {
+  // Loopback only: the mock back-office has fault-injection endpoints and
+  // demo credentials — it must not be reachable from the network. Both
+  // loopback families are bound so "localhost" works whichever way the
+  // client's resolver orders ::1 / 127.0.0.1.
+  const app = createTargetApp();
+  app.listen(port, "127.0.0.1", () => {
     console.log(`CU BackOffice (mock) listening on http://localhost:${port}`);
     console.log(`Teller sign-in: teller1 / Demo!Pass1`);
     console.log(`Fault injection: GET /__faults?arm=session-expiry|interstitial|slow|error500  (&clear=1)`);
+  });
+  app.listen(port, "::1").on("error", () => {
+    /* IPv6 loopback unavailable — IPv4 listener is enough */
   });
 }

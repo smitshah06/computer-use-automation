@@ -2,7 +2,7 @@
   "schemaVersion": "1.0",
   "capability": {
     "id": "member-standing-check",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "name": "Member standing check",
     "description": "Verify a member's standing: look up the member by member number, open the member profile, and report the member's status and member-since date. Requires profile-level access — restricted records surface as the ACCESS_DENIED outcome."
   },
@@ -393,7 +393,50 @@
       }
     }
   ],
-  "recoveries": [],
+  "recoveries": [
+    {
+      "id": "maintenance-interstitial",
+      "appliesTo": "global",
+      "detector": {
+        "elementVisible": {
+          "kind": "role",
+          "role": "dialog",
+          "name": "System Notice"
+        }
+      },
+      "action": {
+        "kind": "dismiss",
+        "target": {
+          "strategies": [
+            {
+              "kind": "role",
+              "role": "button",
+              "name": "OK"
+            },
+            {
+              "kind": "css",
+              "value": "#ctl00_Notice_btnOk"
+            }
+          ],
+          "elementDescription": "OK button on the maintenance notice dialog",
+          "framePath": []
+        }
+      },
+      "maxAttempts": 2
+    },
+    {
+      "id": "transient-slow-load",
+      "appliesTo": "global",
+      "detector": {
+        "textPresent": "Loading, please wait"
+      },
+      "action": {
+        "kind": "waitRetry",
+        "backoffMs": 2500
+      },
+      "maxAttempts": 3
+    }
+  ],
   "successCheckpoint": {
     "all": [
       {
@@ -424,6 +467,6 @@
     "recordedAt": "2026-09-13T01:45:03.467Z",
     "reviewStatus": "approved",
     "reviewedBy": "operator-jsmith",
-    "reviewedAt": "2026-09-13T01:50:15.021Z"
+    "reviewedAt": "2026-09-13T02:42:35.050Z"
   }
 }

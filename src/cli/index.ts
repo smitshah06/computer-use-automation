@@ -38,13 +38,18 @@ loadDotEnv();
 const collect = (v: string, prev: string[]): string[] => [...prev, v];
 
 function parseKv(pairs: string[], flag: string): Record<string, string> {
-  const out: Record<string, string> = {};
+  const out: Record<string, string> = Object.create(null) as Record<string, string>;
   for (const pair of pairs) {
     const i = pair.indexOf("=");
     if (i <= 0) throw new Error(`${flag} expects key=value, got "${pair}"`);
-    out[pair.slice(0, i)] = pair.slice(i + 1);
+    const key = pair.slice(0, i);
+    // keys become {{inputs.<key>}} template names — keep them to that grammar
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) {
+      throw new Error(`${flag} key "${key}" must match [a-zA-Z_][a-zA-Z0-9_]*`);
+    }
+    out[key] = pair.slice(i + 1);
   }
-  return out;
+  return { ...out };
 }
 
 function stamp(prefix: string): string {
@@ -193,8 +198,24 @@ function enrichWithOutcome(capabilityId: string, outcome: Outcome): void {
     return;
   }
   raw.outcomes = [...(raw.outcomes ?? []), outcome];
+  // The review gate covers the artifact's declared semantics; merging a new
+  // outcome changes them, so an approved artifact drops back to draft (and
+  // gets a patch bump) until a human re-approves.
+  const wasApproved = raw.provenance?.reviewStatus === "approved";
+  if (wasApproved) {
+    raw.provenance.reviewStatus = "draft";
+    delete raw.provenance.reviewedBy;
+    delete raw.provenance.reviewedAt;
+    const [maj = NaN, min = NaN, pat = NaN] = String(raw.capability.version).split(".").map(Number);
+    if (Number.isFinite(maj) && Number.isFinite(min) && Number.isFinite(pat)) {
+      raw.capability.version = `${maj}.${min}.${pat + 1}`;
+    }
+  }
   saveArtifact(path, CapabilityArtifactSchema.parse(raw));
-  console.log(`capability enriched: ${path} now declares outcome ${outcome.code}`);
+  console.log(
+    `capability enriched: ${path} now declares outcome ${outcome.code}` +
+      (wasApproved ? ` (review status reset to draft as v${raw.capability.version} — re-run approve)` : ""),
+  );
 }
 
 program

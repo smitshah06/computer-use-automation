@@ -37,7 +37,7 @@ cp .env.example .env        # then edit
 [capabilities/](capabilities/) — a read-only balance lookup, a two-output standing check, and a
 **mutating** sub-account opener — replay with just the two `SCRIBE_SECRET_*` vars set.
 
-Running without live services: `npm test` (58 unit + integration tests) needs **no API key and no
+Running without live services: `npm test` (62 unit + integration tests) needs **no API key and no
 running app** — integration tests boot their own target-app instances and drive the discovery
 loop with a scripted provider double.
 
@@ -129,7 +129,9 @@ Other commands: `npm run catalog` (list capabilities as an agent-facing contract
 `--inject slow|error500` (the other two injectable faults), `--headed` on any run, `--no-console`
 to skip the operator console. Permission denials and validation errors need no injection — they
 are natural app states (member `66666` is restricted for tellers; the deposit form rejects
-amounts under $5).
+amounts under $5). The target app's data is in-memory: each successful sub-account open mutates
+it (appends an account, increments the confirmation number), so restart `npm run target` to reset
+to the seed state.
 
 ## Committed evidence (`/evidence/`)
 
@@ -149,7 +151,7 @@ prints. (The standing-check and sub-account outputs are declared non-sensitive, 
 | `replay_20260912173739` | Replay + injected interstitial | recovery `maintenance-interstitial` applied → `success` |
 | `replay_escalation_20260912180848` | Replay + injected session expiry | `escalated` → operator claim → human re-auth in live session → `completed_step` → `finalStatus: success` |
 | `disc_20260913014228` | Discovery of `subaccount-open` (`gpt-4o`, 14 turns) — model labels the submit `risky`, pauses for approval mid-discovery | recorded → `capabilities/subaccount-open.json` (confirmation `CU-2026-4181`) |
-| `disc_20260913014306` | Discovery, deposit `$2.00` | declared `DEPOSIT_BELOW_MINIMUM`, merged into the artifact |
+| `disc_20260913014306` | Discovery, deposit `$2.00` | declared `DEPOSIT_BELOW_MINIMUM_REQUIREMENT` (renamed `DEPOSIT_BELOW_MINIMUM` in review), merged into the artifact |
 | `disc_20260913014453` | Discovery of `member-standing-check` (`gpt-4o`, 10 turns) | recorded → `capabilities/member-standing-check.json` |
 | `disc_20260913014750` | Discovery, member `66666` (restricted) | declared `ACCESS_DENIED`, merged |
 | `disc_20260913014808` | Discovery, member `99999` | declared `MEMBER_NOT_FOUND`, merged |
@@ -161,9 +163,10 @@ prints. (The standing-check and sub-account outputs are declared non-sensitive, 
 | `replay_20260913015112` | Sub-account open, deposit `$2.00` | approved → app rejects deposit → `escalated`, `finalStatus: business_outcome DEPOSIT_BELOW_MINIMUM` |
 
 The escalation log contains the full control-transfer audit trail: `control_transition`
-`agent→paused` (system), `paused→human` (operator-jsmith), `human→agent` (operator-jsmith), five
-`actor:"human"` actions with values masked, and `step_completed_by_human` with the re-verified
-checkpoint.
+`agent→paused` (system), `paused→human` (operator-jsmith), `human→agent` (operator-jsmith), eight
+`actor:"human"` entries (three re-auth actions driven through the console plus five captured
+input/click/navigate events from the live page) with values masked, and `step_completed_by_human`
+with the re-verified checkpoint.
 
 ## Repo layout
 
@@ -184,7 +187,7 @@ policy.yaml      deny-by-default allowlist: origins, action kinds, risky-action 
 ## Checks
 
 ```bash
-npm test            # 58 tests: schema, policy, classifier, escalation, driver, replay, discovery
+npm test            # 62 tests: schema, policy, classifier, escalation, driver, replay, discovery
 npm run typecheck   # strict tsc
 npm run lint        # eslint + dependency-boundary check (replay must not reach llm)
 ```

@@ -26,7 +26,15 @@ export class RunLogger {
 
   log(actor: Actor, type: string, data: Record<string, unknown> = {}): void {
     this.seq += 1;
-    const entry = this.redactor.maskDeep({ seq: this.seq, ts: nowIso(), actor, type, ...data });
+    // The envelope fields are the audit trail's spine: a payload that happens
+    // to carry its own `type`/`actor`/... must not overwrite them (an
+    // InterventionRequest, for example, has a `type` of its own). Colliding
+    // payload keys are kept, suffixed with "_".
+    const payload: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(data)) {
+      payload[k === "seq" || k === "ts" || k === "actor" || k === "type" ? `${k}_` : k] = v;
+    }
+    const entry = this.redactor.maskDeep({ seq: this.seq, ts: nowIso(), actor, type, ...payload });
     appendFileSync(join(this.runDir, "run.jsonl"), JSON.stringify(entry) + "\n");
   }
 

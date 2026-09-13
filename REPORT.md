@@ -50,7 +50,7 @@ Key shapes and why:
   produce reviewable artifacts; CSS is a per-tenant-patchable last resort; bbox + description is
   the fallback a pure-vision or desktop driver would use. Replay records *which rank matched* per
   step — the drift signal.
-- **Conditions are a tiny declarative AST** (`all/any/urlMatches/textPresent/elementVisible/valueMatches`)
+- **Conditions are a tiny declarative AST** (`all/any/not/urlMatches/textPresent/elementVisible/elementAbsent/valueMatches`)
   — serializable, surface-agnostic, no eval. Checkpoints, outcome detectors, recovery detectors,
   and waits all share it.
 - **Parameterization happens at record time.** The Recorder canonicalizes recorded literals into
@@ -126,8 +126,9 @@ designed (not built) repair path.
 ## Escalation & handoff
 
 Stuck detection — discovery: identical action-signature repeated (warn at 3, terminal at 4), max
-turns, model declares stuck, or a policy block on a risky action; replay: classifier step 3, or
-checkpoint still failing after recoveries are exhausted.
+turns, model declares stuck, or an operator abort at the risky-action approval gate (a deny hands
+control back and the model must try another route); replay: classifier step 3, or checkpoint
+still failing after recoveries are exhausted.
 
 Control transfer is an explicit ownership state machine on the run: `agent → paused → human →
 agent | aborted`. The engine parks awaiting the gateway; every transition is logged with
@@ -173,7 +174,9 @@ transcripts are not persisted — only distilled intents. Tests assert the hygie
 logs contain templates, never `Demo!Pass1`). Limits: the localhost operator console is
 unauthenticated (demo scope); extracted business data is governed only by per-field `sensitive`
 flags, not content-aware DLP; redaction is exact-value masking, so a secret echoed by the app in
-a transformed form would not be caught.
+a transformed form would not be caught; and policy is enforced at `act()` with no network-layer
+backstop — a page-initiated redirect or scripted navigation to an off-allowlist origin is caught
+at the next observe/checkpoint (and the driver refuses to act there), not blocked in-flight.
 
 ## Cuts
 
