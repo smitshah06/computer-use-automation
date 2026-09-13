@@ -1,4 +1,5 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import type { InterventionRecord } from "./store";
 
 // ---------------------------------------------------------------------------
 // Tamper-evident dispositions. A resolution record ("alice approved this
@@ -14,12 +15,20 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypt
 // this module knows the algorithm.
 // ---------------------------------------------------------------------------
 
-const DOMAIN = "scribe.resolution.v1";
+const DOMAIN = "scribe.resolution.v2";
 
+// The payload binds WHO approved WHAT: not just the intervention id, but the
+// run, capability and step it belonged to, plus the operator's note — so a
+// signature for "approve step s6 of open-subaccount in run X" cannot be
+// replayed against, or reinterpreted as, anything else.
 export interface ResolutionSignaturePayload {
   interventionId: string;
+  runId: string;
+  capabilityId: string;
+  stepId: string; // "" for run-level interventions
   disposition: string;
   operator: string;
+  note: string; // "" when the operator left none
   controlChainHash: string; // RunController chain head when the operator handed back
   resolvedAt: string;
 }
@@ -38,7 +47,18 @@ export function keyFingerprint(secret: string): string {
 // Fixed-order JSON array: unambiguous (no delimiter-injection via field
 // values) and independent of object key order.
 function mac(secret: string, p: ResolutionSignaturePayload): string {
-  const canonical = JSON.stringify([DOMAIN, p.interventionId, p.disposition, p.operator, p.controlChainHash, p.resolvedAt]);
+  const canonical = JSON.stringify([
+    DOMAIN,
+    p.interventionId,
+    p.runId,
+    p.capabilityId,
+    p.stepId,
+    p.disposition,
+    p.operator,
+    p.note,
+    p.controlChainHash,
+    p.resolvedAt,
+  ]);
   return createHmac("sha256", secret).update(canonical, "utf8").digest("hex");
 }
 
@@ -52,6 +72,30 @@ export function verifyResolution(secret: string, sig: ResolutionSignature): bool
   const actual = Buffer.from(sig.value, "hex");
   if (actual.length !== expected.length) return false;
   return timingSafeEqual(expected, actual);
+}
+
+// Auditor-grade check: recompute the payload from the STORED record and verify
+// the mac against that. verifyResolution alone proves sig.payload is intact;
+// this one proves the surrounding record still says what was signed — editing
+// e.g. resolution.note or request.capabilityId in interventions.json fails
+// here even though the signature object itself was left untouched.
+// (controlChainHash has no independent copy in the record; auditors cross-check
+// it against the control_transition chain in run.jsonl.)
+export function verifyResolutionForRecord(secret: string, rec: InterventionRecord): boolean {
+  const sig = rec.signature;
+  if (!sig || !rec.resolution || !rec.resolvedAt) return false;
+  const recomputed: ResolutionSignaturePayload = {
+    interventionId: rec.request.id,
+    runId: rec.request.runId,
+    capabilityId: rec.request.capabilityId,
+    stepId: rec.request.stepId ?? "",
+    disposition: rec.resolution.disposition,
+    operator: rec.resolution.operator ?? "",
+    note: rec.resolution.note ?? "",
+    controlChainHash: sig.payload.controlChainHash,
+    resolvedAt: rec.resolvedAt,
+  };
+  return verifyResolution(secret, { ...sig, payload: recomputed });
 }
 
 export function newConsoleToken(): string {

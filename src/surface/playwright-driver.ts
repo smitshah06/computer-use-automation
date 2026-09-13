@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { chromium, type Browser, type BrowserContext, type Frame, type Locator, type Page } from "playwright";
 import {
   describeStrategy,
@@ -453,7 +454,13 @@ export class PlaywrightDriver implements SurfaceDriver {
 
   async launch(): Promise<void> {
     this.browser = await chromium.launch({ headless: !this.opts.headed });
-    this.context = await this.browser.newContext({ viewport: { width: 1280, height: 900 } });
+    // serviceWorkers:"block" closes the one network path that bypasses context
+    // routes entirely — a page-registered worker could otherwise fetch() to any
+    // origin unseen by the handler below.
+    this.context = await this.browser.newContext({
+      viewport: { width: 1280, height: 900 },
+      serviceWorkers: "block",
+    });
     // Network-layer backstop. Policy is primarily enforced in act(), but a page
     // can initiate traffic on its own: JS/meta redirects, server 302 chains,
     // subresource loads to third parties (<img src> exfiltration). Every request
@@ -465,12 +472,14 @@ export class PlaywrightDriver implements SurfaceDriver {
     // redirect-chain hops, whether the 3xx came from the server or from a
     // fulfill (verified empirically). route.continue() would therefore let a
     // same-origin request 302 straight off the allowlist unseen. So allowed
-    // requests are fetched here with redirects DISABLED and the response is
-    // replayed to the browser; a 3xx whose Location resolves off-allowlist is
-    // replaced with a blocking response before the browser can follow it.
-    // (Known gaps, logged by the response listener below: service-worker
-    // traffic bypasses context routes — the mock app registers none — and a
-    // multi-hop chain re-vetted by the browser is TOCTOU-racy in theory.)
+    // requests are fetched here with redirects DISABLED, the FIRST Location is
+    // origin-vetted before the browser ever sees the 3xx, and deeper hops are
+    // covered by the request-stream watchdog installed below. Probing the rest
+    // of the chain from Node was tried and rejected: a probe EXECUTES the hop,
+    // and against a stateful server that double-execution corrupts one-shot
+    // state (the mock app's session-expiry fault fires in the probe, so the
+    // browser never sees the /login?expired=1 it must recover from). Each hop
+    // must run exactly once, and only the browser should run it.
     this.blockedOrigins.clear();
     await this.context.route("**/*", async (route) => {
       const req = route.request();
@@ -498,7 +507,12 @@ export class PlaywrightDriver implements SurfaceDriver {
           /* unparseable Location: treated as off-allowlist below */
         }
         if (!this.policy.originAllowed(dest)) {
-          this.logBlocked(dest || location, { redirect: true, from: url.slice(0, 200), navigation: req.isNavigationRequest() }, true);
+          this.logBlocked(dest || location, {
+            redirect: true,
+            from: url.slice(0, 200),
+            why: "redirect to off-allowlist origin blocked",
+            navigation: req.isNavigationRequest(),
+          }, true);
           await route.fulfill({
             status: 502,
             contentType: "text/plain",
@@ -509,10 +523,41 @@ export class PlaywrightDriver implements SurfaceDriver {
       }
       await route.fulfill({ response });
     });
-    // Belt over braces: if anything does land off-allowlist despite the route
-    // (multi-hop race, service worker), record it loudly. The run still fails
-    // closed — checkAction() refuses the next act() on a page whose current
-    // URL is not allowlisted.
+    // Redirect-hop watchdog. Once a vetted 3xx is fulfilled, the browser
+    // follows the chain natively and those hop requests are the ONE kind of
+    // HTTP traffic routes cannot intercept — but they do surface on the
+    // request event stream (with redirectedFrom set), and every hop is checked
+    // here as it is issued. An off-allowlist hop tears the whole context down:
+    // the in-flight act throws, the run fails closed, and the violation is in
+    // the log. Residual, by design: the event fires concurrently with network
+    // egress, so that single hop request may complete before teardown — this
+    // is detection-and-kill, not prevention. Requests that routes CAN see are
+    // unaffected (redirectedFrom is null), so an ordinary page referencing an
+    // off-allowlist tracker is still quietly aborted, not escalated to a kill.
+    const watchedContext = this.context;
+    watchedContext.on("request", (r) => {
+      const from = r.redirectedFrom();
+      if (!from) return;
+      const hopUrl = r.url();
+      if (this.policy.originAllowed(hopUrl)) return;
+      this.logBlocked(hopUrl, {
+        redirectHop: true,
+        from: from.url().slice(0, 200),
+        why: "uninterceptable redirect hop left the allowlist — terminating context",
+        navigation: r.isNavigationRequest(),
+      }, true);
+      void watchedContext.close().catch(() => {});
+    });
+    // WebSockets bypass HTTP routing; the mock app uses none, so deny them all
+    // rather than leave an unvetted channel open.
+    await this.context.routeWebSocket("**/*", (ws) => {
+      this.logBlocked(ws.url(), { websocket: true }, true);
+      ws.close({ code: 1008, reason: "scribe policy: websockets are not allowlisted" });
+    });
+    // Belt over braces: if an off-allowlist response does arrive (a hop's
+    // egress racing the watchdog's teardown), record it loudly. The run still
+    // fails closed — checkAction() refuses the next act() on a page whose
+    // current URL is not allowlisted.
     this.context.on("response", (r) => {
       if (!this.policy.originAllowed(r.url())) {
         this.logger?.log("system", "net_offlist_response", { url: r.url().slice(0, 200), status: r.status() });
@@ -627,9 +672,11 @@ export class PlaywrightDriver implements SurfaceDriver {
 
   // --- resolution -----------------------------------------------------------
 
+  // Crypto-random so page script cannot predict the marker attribute and
+  // pre-tag decoy elements (timestamp+counter would be guessable).
   private nextNonce(): string {
     this.nonceSeq += 1;
-    return `sp${Date.now().toString(36)}${this.nonceSeq.toString(36)}`;
+    return `sp${randomBytes(6).toString("hex")}${this.nonceSeq.toString(36)}`;
   }
 
   private async tryStrategy(
@@ -913,7 +960,9 @@ export class PlaywrightDriver implements SurfaceDriver {
         if (frame.isDetached()) continue;
         try {
           const text = await frame.evaluate(() => document.body?.innerText ?? "");
-          if (text.replace(/\s+/g, " ").includes(cond.textPresent)) return true;
+          // Normalize BOTH sides: a multi-word needle recorded with a single
+          // space must match page text whose whitespace collapses differently.
+          if (text.replace(/\s+/g, " ").includes(cond.textPresent.replace(/\s+/g, " "))) return true;
         } catch {
           continue;
         }

@@ -1,9 +1,3 @@
-import { randomBytes } from "node:crypto";
-
-export function newRunId(prefix: "disc" | "replay"): string {
-  return `${prefix}_${randomBytes(2).toString("hex")}`;
-}
-
 export function nowIso(): string {
   return new Date().toISOString();
 }

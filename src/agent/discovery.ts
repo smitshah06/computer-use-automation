@@ -144,8 +144,20 @@ export class DiscoveryEngine {
       { role: "user", content: `Begin. Current state of the application:\n\n${await this.observeMasked()}` },
     ];
     const maxTurns = this.opts.maxTurns ?? this.config.budgets.discoveryMaxTurns;
+    // Two independent stopping conditions: a turn budget AND a wall-clock
+    // deadline — slow provider retries or long page waits must not stretch a
+    // 40-turn run into an unbounded one.
+    const deadline = Date.now() + this.config.budgets.runTimeoutMs;
 
     for (let turn = 1; turn <= maxTurns; turn += 1) {
+      if (Date.now() > deadline) {
+        await this.captureStuck("wall-clock budget exhausted");
+        return {
+          status: "stuck",
+          summary: `wall-clock budget (${this.config.budgets.runTimeoutMs} ms) exhausted after ${turn - 1} turns`,
+          turns: turn - 1,
+        };
+      }
       let decision: AssistantDecision;
       try {
         decision = await this.decideWithRetry({ system, turns, tools: AGENT_TOOLS });

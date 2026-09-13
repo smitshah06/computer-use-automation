@@ -7,7 +7,12 @@ export class Redactor {
   constructor(private replacement = "***") {}
 
   register(value: string | undefined): void {
-    if (value && value.length >= 3) this.values.add(value);
+    if (!value || value.length < 3) return;
+    this.values.add(value);
+    // A secret that reaches a URL or form body is often percent-encoded
+    // ("Demo!Pass1" → "Demo%21Pass1"); mask that spelling too.
+    const enc = encodeURIComponent(value);
+    if (enc !== value) this.values.add(enc);
   }
 
   registerAll(values: Record<string, string>, sensitiveNames?: Set<string>): void {

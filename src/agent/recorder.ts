@@ -57,7 +57,17 @@ export class Recorder {
   private readonly acts: RecordedAct[] = [];
   private readonly titles: string[] = [];
 
-  constructor(private readonly spec: RecorderSpec) {}
+  constructor(private readonly spec: RecorderSpec) {
+    // A typo'd --sensitive-input name would otherwise be silently useless and
+    // the value it was meant to protect would persist unmasked. Fail loudly.
+    const unknown = (spec.sensitiveInputs ?? []).filter((n) => !(n in spec.inputs));
+    if (unknown.length > 0) {
+      throw new Error(
+        `sensitive input name(s) do not match any declared input: ${unknown.join(", ")} ` +
+          `(declared: ${Object.keys(spec.inputs).join(", ") || "none"})`,
+      );
+    }
+  }
 
   record(a: RecordedAct): void {
     this.acts.push(a);
@@ -173,7 +183,7 @@ export class Recorder {
     }, this.titles[0] ?? "");
     const titlePattern = prefix.trim().length >= 4 ? escapeRegex(prefix.trim()) : undefined;
 
-    return {
+    const artifact = {
       schemaVersion: "1.0",
       capability: {
         id: spec.capabilityId,
@@ -207,5 +217,24 @@ export class Recorder {
         reviewStatus: "draft",
       },
     };
+
+    // Fail-closed leak scan: parameterization is string surgery, and a
+    // sensitive literal could in principle survive it inside a synthesized
+    // locator name, derived checkpoint regex, or page-derived text. Refuse to
+    // emit such an artifact instead of persisting PII/credentials.
+    const sensitiveValues = (spec.sensitiveInputs ?? [])
+      .map((n) => spec.inputs[n])
+      .filter((v): v is string => Boolean(v));
+    if (sensitiveValues.length > 0) {
+      const json = JSON.stringify(artifact);
+      const leaked = sensitiveValues.some((v) => json.includes(v));
+      if (leaked) {
+        throw new Error(
+          "distill: a sensitive input literal survived parameterization; refusing to write the artifact " +
+            "(the flow embeds the value in text the recorder could not safely canonicalize)",
+        );
+      }
+    }
+    return artifact;
   }
 }

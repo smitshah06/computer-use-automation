@@ -20,9 +20,9 @@ export type HealthStatus = "healthy" | "drifting" | "broken";
 export interface StepHealth {
   stepId: string;
   runsAttempted: number;
-  baseline: RankSample; // earliest successful resolution
+  baseline: RankSample | null; // earliest successful resolution; null = never resolved in the scanned runs
   latest: RankSample | null; // most recent successful resolution; null = latest attempt failed
-  worstRank: number;
+  worstRank: number | null;
   distribution: Record<string, number>; // rank -> count ("none" = attempted, not resolved)
   status: HealthStatus;
   note: string;
@@ -75,11 +75,28 @@ export function collectRunResults(evidenceRoot: string): RunResult[] {
 interface Sample {
   rank: number | null;
   kind?: string;
+  targeted?: boolean;
 }
 
 function stepHealth(stepId: string, samples: Sample[]): StepHealth | null {
   const resolved = samples.filter((s): s is { rank: number; kind?: string } => s.rank !== null);
-  if (resolved.length === 0) return null; // targetless step (navigate/press): nothing to rank
+  if (resolved.length === 0) {
+    // No resolution in any run. Two very different cases: a targetless step
+    // (navigate/press) has nothing to rank — but a TARGETED step that never
+    // resolved is the worst possible signal, not a reason to drop the row.
+    // (Runs recorded before the `targeted` flag existed stay excluded.)
+    if (!samples.some((s) => s.targeted === true)) return null;
+    return {
+      stepId,
+      runsAttempted: samples.length,
+      baseline: null,
+      latest: null,
+      worstRank: null,
+      distribution: { none: samples.length },
+      status: "broken",
+      note: "targeted step has never resolved at any strategy rank in the scanned runs",
+    };
+  }
 
   const baseline: RankSample = { rank: resolved[0]!.rank, kind: resolved[0]!.kind ?? "?" };
   const latestResolved = resolved[resolved.length - 1]!;
@@ -139,7 +156,7 @@ export function buildHealthReport(runs: RunResult[], evidenceRoot: string): Heal
     for (const run of capRuns) {
       for (const t of run.telemetry) {
         const list = samplesByStep.get(t.stepId) ?? [];
-        list.push({ rank: t.strategyRank, kind: t.strategyKind });
+        list.push({ rank: t.strategyRank, kind: t.strategyKind, targeted: t.targeted });
         samplesByStep.set(t.stepId, list);
         for (const rec of t.recoveriesApplied) {
           recoveryCounts[rec] = (recoveryCounts[rec] ?? 0) + 1;
@@ -197,7 +214,7 @@ export function renderHealthReport(r: HealthReport): string[] {
     } else {
       lines.push(`  step   runs  baseline           latest             seen`);
       for (const s of attention) {
-        const baseline = `${s.baseline.rank} (${s.baseline.kind})`;
+        const baseline = s.baseline === null ? "never" : `${s.baseline.rank} (${s.baseline.kind})`;
         const latest = s.latest === null ? "unresolved" : `${s.latest.rank} (${s.latest.kind})`;
         const seen = Object.entries(s.distribution)
           .map(([k, v]) => `${k}×${v}`)

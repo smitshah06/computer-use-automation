@@ -64,6 +64,16 @@ export class ReplayEngine {
     const startedAt = nowIso();
     const maskedParams = this.maskParams(params);
 
+    // Register sensitive values with the redactor BEFORE anything can be
+    // written — the input-validation failure below writes a result file, and
+    // its messages must already be maskable.
+    const secrets =
+      this.opts.secrets ?? loadSecretsFromEnv(process.env, this.config.redaction.extraSecretEnvPrefixes);
+    for (const v of Object.values(secrets)) this.logger.redactor.register(v);
+    for (const inp of this.artifact.inputs) {
+      if (inp.sensitive && params[inp.name]) this.logger.redactor.register(params[inp.name]);
+    }
+
     const inputErrors = this.validateInputs(params);
     if (inputErrors.length > 0) {
       const result = this.buildResult(startedAt, maskedParams, {
@@ -78,13 +88,7 @@ export class ReplayEngine {
       return result;
     }
 
-    const secrets =
-      this.opts.secrets ?? loadSecretsFromEnv(process.env, this.config.redaction.extraSecretEnvPrefixes);
     this.ctx = { inputs: params, secrets, env: this.opts.env ?? {} };
-    for (const v of Object.values(secrets)) this.logger.redactor.register(v);
-    for (const inp of this.artifact.inputs) {
-      if (inp.sensitive && params[inp.name]) this.logger.redactor.register(params[inp.name]);
-    }
 
     this.classifier = new DeviationClassifier(this.artifact, this.driver, this.ctx);
     this.outputs = {};
@@ -100,9 +104,11 @@ export class ReplayEngine {
       reviewStatus: this.artifact.provenance.reviewStatus,
     });
 
-    await this.driver.launch();
     let outcome: RunOutcome;
     try {
+      // launch() inside the try: a browser-start failure must still produce a
+      // structured result + evidence, not an unhandled rejection.
+      await this.driver.launch();
       outcome = (await this.enter()) ?? (await this.runSteps()) ?? (await this.verifySuccess());
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -146,16 +152,19 @@ export class ReplayEngine {
 
     // Fail fast on the wrong app or version before touching anything.
     const fp = this.artifact.target.appFingerprint;
-    if (fp.titlePattern && !new RegExp(fp.titlePattern).test(await this.driver.title())) {
-      return {
-        status: "hard_failure",
-        error: await this.captureError(
-          "entry",
-          undefined,
-          `app fingerprint title ~ /${fp.titlePattern}/`,
-          `title "${await this.driver.title()}" does not match`,
-        ),
-      };
+    if (fp.titlePattern) {
+      const title = await this.driver.title(); // read once: the page can change between awaits
+      if (!new RegExp(fp.titlePattern).test(title)) {
+        return {
+          status: "hard_failure",
+          error: await this.captureError(
+            "entry",
+            undefined,
+            `app fingerprint title ~ /${fp.titlePattern}/`,
+            `title "${title}" does not match`,
+          ),
+        };
+      }
     }
     for (const marker of fp.markers) {
       if (!(await this.driver.evalCondition({ textPresent: marker }))) {
@@ -275,14 +284,6 @@ export class ReplayEngine {
     this.logger.log("replay", "step_start", { stepId: step.id, intent: step.intent, action: step.action });
 
     const done = (): undefined => {
-      this.telemetry.push({
-        stepId: step.id,
-        strategyRank: rank,
-        strategyKind: kind,
-        attempts: Math.max(attempts, 1),
-        recoveriesApplied,
-        durationMs: Date.now() - t0,
-      });
       this.logger.log("replay", "step_done", {
         stepId: step.id,
         strategyRank: rank,
@@ -293,112 +294,129 @@ export class ReplayEngine {
       return undefined;
     };
 
-    for (;;) {
-      if (Date.now() > this.deadline) {
-        return this.hardFailure(step, "run to finish within the configured budget", "run timeout exceeded");
-      }
-
-      // Guard scan: a declared outcome or a known obstacle (interstitial,
-      // expired session) can surface BETWEEN steps; detect it before acting
-      // on a page that is not the one the step was recorded against.
-      const guard = await this.classifier.classify(step.id);
-      if (guard.type === "outcome") return this.businessOutcome(step.id, guard.outcome);
-      if (guard.type === "recovery") {
-        if (!(await this.applyRecovery(guard.recovery, step, recoveriesApplied))) {
-          return this.hardFailure(step, `recovery ${guard.recovery.id} to succeed`, "recovery action failed");
+    try {
+      for (;;) {
+        if (Date.now() > this.deadline) {
+          return this.hardFailure(step, "run to finish within the configured budget", "run timeout exceeded");
         }
-        continue;
-      }
 
-      if (step.waitBefore) {
-        const cond = materializeCondition(step.waitBefore.condition, this.ctx);
-        if (!(await this.driver.waitForCondition(cond, step.waitBefore.timeoutMs))) {
-          // A readiness hint, not a postcondition: log and attempt anyway —
-          // the act's own resolution and the checkpoint are the authority.
-          this.logger.log("replay", "wait_before_timeout", {
-            stepId: step.id,
-            condition: describeCondition(step.waitBefore.condition),
-          });
+        // Guard scan: a declared outcome or a known obstacle (interstitial,
+        // expired session) can surface BETWEEN steps; detect it before acting
+        // on a page that is not the one the step was recorded against.
+        const guard = await this.classifier.classify(step.id);
+        if (guard.type === "outcome") return this.businessOutcome(step.id, guard.outcome);
+        if (guard.type === "recovery") {
+          if (!(await this.applyRecovery(guard.recovery, step, recoveriesApplied))) {
+            return this.hardFailure(step, `recovery ${guard.recovery.id} to succeed`, "recovery action failed");
+          }
+          continue;
         }
-      }
 
-      attempts += 1;
-      const res = await this.driver.act(this.buildRequest(step, approved));
-
-      if (res.ok) {
-        rank = res.strategyRank ?? null;
-        kind = res.strategyKind;
-        if (step.action === "extract" && step.outputName && res.extracted !== undefined) {
-          this.outputs[step.outputName] = res.extracted;
-        }
-        if (step.checkpoint) {
-          const cond = materializeCondition(step.checkpoint, this.ctx);
-          if (!(await this.driver.waitForCondition(cond, this.checkpointWaitMs))) {
-            const dev = await this.deviate(step, describeCondition(step.checkpoint), "checkpoint not satisfied", {
-              attempts,
-              recoveriesApplied,
-              checkpoint: cond,
+        if (step.waitBefore) {
+          const cond = materializeCondition(step.waitBefore.condition, this.ctx);
+          if (!(await this.driver.waitForCondition(cond, step.waitBefore.timeoutMs))) {
+            // A readiness hint, not a postcondition: log and attempt anyway —
+            // the act's own resolution and the checkpoint are the authority.
+            this.logger.log("replay", "wait_before_timeout", {
+              stepId: step.id,
+              condition: describeCondition(step.waitBefore.condition),
             });
-            if (dev === "retry" || dev === "retry_reset") {
-              if (dev === "retry_reset") {
-                attempts = 0;
-                approved = false; // approve_once covers one attempt context, not the post-fix retry
-              }
-              continue;
-            }
-            if (dev === "done") return done();
-            return dev;
           }
         }
-        await this.shot(`${step.id}_ok`);
-        return done();
-      }
 
-      // --- the act itself failed ---
-      if (res.denied) {
-        return this.hardFailure(step, "action permitted by policy", `denied by policy: ${res.denied}`);
-      }
-      if (res.needsApproval) {
-        if (!this.opts.gateway) {
+        attempts += 1;
+        const res = await this.driver.act(this.buildRequest(step, approved));
+        // approve_once covers exactly one EXECUTED act attempt. Consuming it
+        // here (success or failure) means a retry can never silently re-submit
+        // a mutating action on a stale approval — it must re-escalate.
+        approved = false;
+        // Record which locator strategy resolved on EVERY attempt, not just the
+        // successful one — failed steps are exactly what locator-health needs.
+        if (res.strategyRank !== undefined) {
+          rank = res.strategyRank;
+          kind = res.strategyKind;
+        }
+
+        if (res.ok) {
+          if (step.action === "extract" && step.outputName && res.extracted !== undefined) {
+            this.outputs[step.outputName] = res.extracted;
+          }
+          if (step.checkpoint) {
+            const cond = materializeCondition(step.checkpoint, this.ctx);
+            if (!(await this.driver.waitForCondition(cond, this.checkpointWaitMs))) {
+              const dev = await this.deviate(step, describeCondition(step.checkpoint), "checkpoint not satisfied", {
+                attempts,
+                recoveriesApplied,
+                checkpoint: cond,
+              });
+              if (dev === "retry" || dev === "retry_reset") {
+                if (dev === "retry_reset") attempts = 0; // operator fixed the environment: fresh budget
+                continue;
+              }
+              if (dev === "done") return done();
+              return dev;
+            }
+          }
+          await this.shot(`${step.id}_ok`);
+          return done();
+        }
+
+        // --- the act itself failed ---
+        if (res.denied) {
+          return this.hardFailure(step, "action permitted by policy", `denied by policy: ${res.denied}`);
+        }
+        if (res.needsApproval) {
+          if (!this.opts.gateway) {
+            return this.hardFailure(
+              step,
+              "approval to proceed with a risky action",
+              `${res.needsApproval} — no escalation gateway is wired ` +
+                "(re-run with the operator console enabled, or approve the capability for unattended replay)",
+            );
+          }
+          const summary = await this.escalate("approval", res.needsApproval, step);
+          if (summary.disposition === "approve_once") {
+            approved = true;
+            attempts -= 1; // the approval round-trip is not a failed attempt
+            continue;
+          }
+          this.aborted = true;
           return this.hardFailure(
             step,
             "approval to proceed with a risky action",
-            `${res.needsApproval} — no escalation gateway is wired ` +
-              "(re-run with the operator console enabled, or approve the capability for unattended replay)",
+            `operator disposition: ${summary.disposition}`,
           );
         }
-        const summary = await this.escalate("approval", res.needsApproval, step);
-        if (summary.disposition === "approve_once") {
-          approved = true;
-          attempts -= 1; // the approval round-trip is not a failed attempt
+        const detail = res.ambiguous
+          ? (res.error ?? "ambiguous resolution")
+          : res.notFound
+            ? (res.error ?? "target not found")
+            : (res.error ?? "action failed");
+        const dev = await this.deviate(step, `${step.action} on "${step.target?.elementDescription ?? step.url ?? step.key}"`, detail, {
+          attempts,
+          recoveriesApplied,
+          checkpoint: step.checkpoint ? materializeCondition(step.checkpoint, this.ctx) : undefined,
+        });
+        if (dev === "retry" || dev === "retry_reset") {
+          if (dev === "retry_reset") attempts = 0; // operator fixed the environment: fresh budget
           continue;
         }
-        this.aborted = true;
-        return this.hardFailure(
-          step,
-          "approval to proceed with a risky action",
-          `operator disposition: ${summary.disposition}`,
-        );
+        if (dev === "done") return done();
+        return dev;
       }
-      const detail = res.ambiguous
-        ? (res.error ?? "ambiguous resolution")
-        : res.notFound
-          ? (res.error ?? "target not found")
-          : (res.error ?? "action failed");
-      const dev = await this.deviate(step, `${step.action} on "${step.target?.elementDescription ?? step.url ?? step.key}"`, detail, {
-        attempts,
+    } finally {
+      // Telemetry is pushed on EVERY exit — success, business outcome, hard
+      // failure, escalation — so drift analysis sees broken steps, not just
+      // the runs that happened to succeed.
+      this.telemetry.push({
+        stepId: step.id,
+        strategyRank: rank,
+        strategyKind: kind,
+        targeted: step.target !== undefined,
+        attempts: Math.max(attempts, 1),
         recoveriesApplied,
-        checkpoint: step.checkpoint ? materializeCondition(step.checkpoint, this.ctx) : undefined,
+        durationMs: Date.now() - t0,
       });
-      if (dev === "retry" || dev === "retry_reset") {
-        if (dev === "retry_reset") {
-          attempts = 0;
-          approved = false; // approve_once covers one attempt context, not the post-fix retry
-        }
-        continue;
-      }
-      if (dev === "done") return done();
-      return dev;
     }
   }
 
@@ -496,6 +514,12 @@ export class ReplayEngine {
             this.logger.log("replay", "recovery_step_failed", { recoveryId: r.id, stepId: sid, error: res.error });
             return false;
           }
+          // Recovery re-runs are real step executions: keep their extractions,
+          // or an output produced inside a recovery (e.g. re-auth then re-read)
+          // would be silently dropped from the contract.
+          if (s.action === "extract" && s.outputName && res.extracted !== undefined) {
+            this.outputs[s.outputName] = res.extracted;
+          }
           if (s.checkpoint) {
             const cond = materializeCondition(s.checkpoint, this.ctx);
             if (!(await this.driver.waitForCondition(cond, this.checkpointWaitMs))) {
@@ -550,9 +574,11 @@ export class ReplayEngine {
 
   // --- terminal outcomes --------------------------------------------------------
 
-  private businessOutcome(stepId: string, outcome: Outcome): RunOutcome {
+  private async businessOutcome(stepId: string, outcome: Outcome): Promise<RunOutcome> {
     this.logger.log("replay", "business_outcome", { stepId, code: outcome.code });
-    void this.shot(`${stepId}_outcome_${outcome.code}`);
+    // Awaited: this screenshot IS the evidence for the outcome classification —
+    // fire-and-forget could race browser close and drop it.
+    await this.shot(`${stepId}_outcome_${outcome.code}`);
     return {
       status: "business_outcome",
       code: outcome.code,
@@ -619,6 +645,11 @@ export class ReplayEngine {
       finalStatus,
       outputs: outcome.status === "success" ? outcome.outputs : undefined,
       code: outcome.status === "business_outcome" ? outcome.code : undefined,
+      // Carry the outcome's payload too — a caller handling an escalated
+      // MEMBER_NOT_FOUND deserves the same description/extractions a
+      // non-escalated one gets.
+      description: outcome.status === "business_outcome" ? outcome.description : undefined,
+      extracted: outcome.status === "business_outcome" ? outcome.extracted : undefined,
       error: outcome.status === "hard_failure" ? outcome.error : undefined,
     };
   }
@@ -658,8 +689,14 @@ export class ReplayEngine {
         if (inp.required) errors.push(`missing required input "${inp.name}"`);
         continue;
       }
-      if (inp.pattern && !new RegExp(inp.pattern).test(v)) {
-        errors.push(`input "${inp.name}" does not match /${inp.pattern}/`);
+      if (inp.pattern) {
+        try {
+          if (!new RegExp(inp.pattern).test(v)) errors.push(`input "${inp.name}" does not match /${inp.pattern}/`);
+        } catch {
+          // A malformed pattern in the artifact must surface as a validation
+          // failure, not crash the run before a result can be written.
+          errors.push(`input "${inp.name}" has an unusable pattern /${inp.pattern}/ in the artifact`);
+        }
       }
       if (inp.enumValues && !inp.enumValues.includes(v)) {
         errors.push(`input "${inp.name}" must be one of ${inp.enumValues.join(", ")}`);

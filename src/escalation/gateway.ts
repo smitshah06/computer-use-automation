@@ -88,8 +88,12 @@ export class OperatorGateway implements EscalationGateway {
         : (rec) =>
             signResolution(secret, {
               interventionId: id,
+              runId: rec.request.runId,
+              capabilityId: rec.request.capabilityId,
+              stepId: rec.request.stepId ?? "",
               disposition: resolution.disposition,
               operator: resolution.operator ?? "",
+              note: resolution.note ?? "",
               controlChainHash: this.controller.chainHash,
               resolvedAt: rec.resolvedAt!,
             }),

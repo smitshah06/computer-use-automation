@@ -5,13 +5,19 @@ import {
   signResolution,
   tokenMatches,
   verifyResolution,
+  verifyResolutionForRecord,
   type ResolutionSignaturePayload,
 } from "../../src/escalation/signing";
+import type { InterventionRecord } from "../../src/escalation/store";
 
 const payload: ResolutionSignaturePayload = {
   interventionId: "iv_42",
+  runId: "replay_20260912",
+  capabilityId: "open-subaccount",
+  stepId: "s6",
   disposition: "approve_once",
   operator: "alice",
+  note: "risky action reviewed",
   controlChainHash: "c0ffee".repeat(10) + "abcd",
   resolvedAt: "2026-09-12T10:00:00.000Z",
 };
@@ -51,6 +57,44 @@ describe("resolution signing", () => {
     const a = signResolution("k", { ...payload, disposition: "deny", operator: '","x' });
     const b = signResolution("k", { ...payload, disposition: 'deny","x', operator: "" });
     expect(a.value).not.toBe(b.value);
+  });
+
+  it("verifyResolutionForRecord catches edits to the stored record, not just the signature payload", () => {
+    const record = (): InterventionRecord => ({
+      request: {
+        id: "iv_42",
+        runId: "replay_20260912",
+        type: "approval",
+        capabilityId: "open-subaccount",
+        reason: "risky action requires approval",
+        stepId: "s6",
+        currentUrl: "http://localhost:4600/subaccounts/new",
+        requestedAt: "2026-09-12T09:59:00.000Z",
+        expiresAt: "2026-09-12T10:29:00.000Z",
+      },
+      status: "resolved",
+      claimedBy: "alice",
+      claimedAt: "2026-09-12T09:59:30.000Z",
+      resolution: { disposition: "approve_once", operator: "alice", note: "risky action reviewed" },
+      resolvedAt: "2026-09-12T10:00:00.000Z",
+      signature: signResolution("s3cret-key", payload),
+    });
+
+    expect(verifyResolutionForRecord("s3cret-key", record())).toBe(true);
+
+    // Edit fields OUTSIDE sig.payload's object identity: the recomputed
+    // payload no longer matches what was signed.
+    const editedNote = record();
+    editedNote.resolution = { ...editedNote.resolution!, note: "totally routine, nothing to see" };
+    expect(verifyResolutionForRecord("s3cret-key", editedNote)).toBe(false);
+
+    const editedCap = record();
+    editedCap.request = { ...editedCap.request, capabilityId: "member-savings-lookup" };
+    expect(verifyResolutionForRecord("s3cret-key", editedCap)).toBe(false);
+
+    const unresolved = record();
+    unresolved.signature = undefined;
+    expect(verifyResolutionForRecord("s3cret-key", unresolved)).toBe(false);
   });
 });
 

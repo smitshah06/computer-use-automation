@@ -100,7 +100,15 @@ async function main(): Promise<void> {
 
   try {
     const iv = await until<InterventionRecord>(async () => {
-      const list = (await (await fetch(`${consoleUrl}/api/interventions`, { headers: AUTH })).json()) as InterventionRecord[];
+      const res = await fetch(`${consoleUrl}/api/interventions`, { headers: AUTH });
+      if (res.status === 401) {
+        // Only possible if ANOTHER scribe console already owns the port — this
+        // script polls that foreign console with its own token. Fail with the
+        // cause, not a JSON-shape crash.
+        throw new Error(`console on ${consoleUrl} rejected the token — another run's console is using that port`);
+      }
+      if (!res.ok) return undefined;
+      const list = (await res.json()) as InterventionRecord[];
       return list.find((x) => x.status === "pending");
     });
     console.log(`intervention pending: ${iv.request.id} — ${iv.request.reason}`);

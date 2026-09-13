@@ -160,6 +160,11 @@ program
     const inputs = parseKv(o.input, "--input");
     const env = parseKv(o.env, "--env");
     if (!Object.keys(env).length) env.APP_BASE_URL = new URL(o.entry).origin;
+    const maxTurns = o.maxTurns === undefined ? undefined : Number(o.maxTurns);
+    if (maxTurns !== undefined && (!Number.isInteger(maxTurns) || maxTurns < 1)) {
+      // NaN would make the turn loop exit instantly with a misleading "budget exhausted".
+      throw new Error(`--max-turns must be a positive integer, got "${o.maxTurns}"`);
+    }
 
     const logger = new RunLogger(stamp("disc"), new Redactor(), EVIDENCE_DIR);
     const driver = new PlaywrightDriver(new PolicyEngine(config), logger, { headed: o.headed });
@@ -176,7 +181,7 @@ program
         inputs,
         sensitiveInputs: o.sensitiveInput,
         env,
-      }, { gateway, maxTurns: o.maxTurns ? Number(o.maxTurns) : undefined });
+      }, { gateway, maxTurns });
       return engine.run();
     });
 

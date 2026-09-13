@@ -45,6 +45,8 @@ export const RunOutcomeSchema = z.discriminatedUnion("status", [
     finalStatus: z.enum(["success", "business_outcome", "hard_failure", "aborted"]),
     outputs: z.record(z.string()).optional(),
     code: z.string().optional(),
+    description: z.string().optional(), // business-outcome payload carried through escalation
+    extracted: z.record(z.string()).optional(),
     error: StructuredErrorSchema.optional(),
   }).strict(),
 ]);
@@ -54,6 +56,7 @@ export const StepTelemetrySchema = z.object({
   stepId: z.string(),
   strategyRank: z.number().int().nullable(), // 0 = primary strategy matched; rising ranks = locator drift
   strategyKind: z.string().optional(),
+  targeted: z.boolean().optional(), // step has a locator target; distinguishes "never resolved" from "nothing to resolve"
   attempts: z.number().int().min(1),
   recoveriesApplied: z.array(z.string()).default([]),
   durationMs: z.number().int().min(0),

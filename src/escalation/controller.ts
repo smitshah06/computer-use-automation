@@ -20,9 +20,14 @@ export class RunController {
   // control_transition event in run.jsonl breaks every hash after it.
   // Resolution signatures embed the chain head at hand-back, binding "who
   // approved what" to the exact custody history it happened under.
-  private chain = createHash("sha256").update("scribe.control-chain.v1").digest("hex");
+  private chain: string;
 
-  constructor(private readonly logger: RunLogger) {}
+  constructor(private readonly logger: RunLogger) {
+    // Genesis committed to the runId: two runs with identical custody
+    // histories still produce distinct chain heads, so a head (or signature
+    // embedding one) copied from another run can never line up.
+    this.chain = createHash("sha256").update(`scribe.control-chain.v1:${logger.runId}`).digest("hex");
+  }
 
   get current(): ControlOwner {
     return this.owner;

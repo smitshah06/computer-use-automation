@@ -54,6 +54,10 @@ beforeAll(async () => {
     </body></html>`);
   });
   app.get("/redir", (_req, res) => res.redirect(302, `${EVIL}/landing`));
+  // Multi-hop chain: the FIRST Location is same-origin (passes preflight
+  // vetting), the SECOND leaves the allowlist — only the watchdog can see it.
+  app.get("/chain", (_req, res) => res.redirect(302, "/hop"));
+  app.get("/hop", (_req, res) => res.redirect(302, `${EVIL}/landing`));
   appServer = app.listen(APP_PORT);
 
   // Off-allowlist origin that records every request that actually reaches it.
@@ -132,5 +136,24 @@ describe("network-layer origin backstop (context.route)", () => {
     expect(driver.url()).toBe(`${APP}/redir`); // still on the allowlisted origin
     expect(evilHits).toHaveLength(0);
     expect(blockedEvents().some((e) => e.origin === EVIL && e.redirect === true)).toBe(true);
+  });
+
+  // LAST on purpose: a watchdog kill leaves the browser context dead.
+  it("kills the context when a multi-hop chain leaves the allowlist past the vetted first hop", async () => {
+    // /chain 302s to same-origin /hop (passes preflight vetting, so the 3xx is
+    // fulfilled and the browser follows it natively); /hop then 302s to the
+    // evil origin. That second hop is uninterceptable by routes — the watchdog
+    // must catch it on the request stream and tear the context down.
+    const res = await driver.act({ kind: "navigate", url: `${APP}/chain`, risk: "safe", phase: "replay" });
+    expect(res.ok).toBe(false); // the in-flight navigation dies with the context
+
+    expect(
+      await until(() => blockedEvents().some((e) => e.origin === EVIL && e.redirectHop === true))
+    ).toBe(true);
+    // NOT asserted: evilHits stays empty. The hop's egress races the teardown
+    // (documented residual — detection-and-kill, not prevention). What matters
+    // is the violation is on the record and the driver is dead from here on:
+    const after = await driver.act({ kind: "navigate", url: `${APP}/`, risk: "safe", phase: "replay" });
+    expect(after.ok).toBe(false); // fail closed — no further actions possible
   });
 });

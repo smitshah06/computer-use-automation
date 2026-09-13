@@ -39,7 +39,7 @@ cp .env.example .env        # then edit
 [capabilities/](capabilities/) — a read-only balance lookup, a two-output standing check, and a
 **mutating** sub-account opener — replay with just the two `SCRIBE_SECRET_*` vars set.
 
-Running without live services: `npm test` (91 unit + integration tests) needs **no API key and no
+Running without live services: `npm test` (93 unit + integration tests) needs **no API key and no
 running app** — integration tests boot their own target-app instances and drive the discovery
 loop with a scripted provider double.
 
@@ -219,7 +219,7 @@ policy.yaml      deny-by-default allowlist: origins, action kinds, risky-action 
 ## Checks
 
 ```bash
-npm test            # 91 tests: schema, policy, classifier, escalation, driver, replay, discovery, tenant overlay
+npm test            # 93 tests: schema, policy, classifier, escalation, driver, replay, discovery, tenant overlay
 npm run typecheck   # strict tsc
 npm run lint        # eslint + dependency-boundary check (replay must not reach llm)
 ```

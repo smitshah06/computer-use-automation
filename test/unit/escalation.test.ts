@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { RunController } from "../../src/escalation/controller";
 import { InterventionStore } from "../../src/escalation/store";
 import { OperatorGateway } from "../../src/escalation/gateway";
-import { verifyResolution } from "../../src/escalation/signing";
+import { verifyResolution, verifyResolutionForRecord } from "../../src/escalation/signing";
 import { RunLogger } from "../../src/evidence/run-logger";
 import { Redactor } from "../../src/evidence/redactor";
 import { nowIso, type InterventionRequest } from "../../src/core";
@@ -79,17 +79,27 @@ describe("RunController control-ownership state machine", () => {
       .map((e) => e.chainHash);
     expect(logged).toEqual([h1, h2]);
 
-    // deterministic: an auditor replaying the same transitions recomputes the
-    // same heads — so editing any historical event breaks every later hash
-    const c2 = new RunController(mkLogger());
+    // deterministic: an auditor replaying the same transitions FOR THE SAME
+    // RUN recomputes the same heads — so editing any historical event breaks
+    // every later hash
+    const sameRun = (): RunLogger =>
+      new RunLogger(logger.runId, new Redactor(), mkdtempSync(join(tmpdir(), "scribe-esc-")));
+    const c2 = new RunController(sameRun());
     c2.transition("paused", "system", "checkpoint failed");
     expect(c2.chainHash).toBe(h1);
     c2.transition("human", "op", "claimed");
     expect(c2.chainHash).toBe(h2);
 
-    const c3 = new RunController(mkLogger());
+    const c3 = new RunController(sameRun());
     c3.transition("paused", "system", "TAMPERED reason");
     expect(c3.chainHash).not.toBe(h1);
+
+    // genesis is seeded with the runId: identical custody histories in a
+    // DIFFERENT run produce different heads, so a chain head (or a signature
+    // embedding one) copied across runs can never line up
+    const otherRun = new RunController(mkLogger());
+    otherRun.transition("paused", "system", "checkpoint failed");
+    expect(otherRun.chainHash).not.toBe(h1);
   });
 });
 
@@ -131,8 +141,11 @@ describe("OperatorGateway control semantics", () => {
     expect(rec.signature).toBeDefined();
     expect(rec.signature!.payload).toMatchObject({
       interventionId: "iv_sig",
+      runId: "r1",
+      capabilityId: "cap",
       disposition: "approve_once",
       operator: "alice",
+      note: "ok",
       controlChainHash: chainAtHandback,
     });
     expect(rec.signature!.payload.resolvedAt).toBe(rec.resolvedAt);
@@ -145,6 +158,16 @@ describe("OperatorGateway control semantics", () => {
     expect(persisted[0].signature.value).toBe(rec.signature!.value);
     const tampered = { ...persisted[0].signature, payload: { ...persisted[0].signature.payload, disposition: "deny" } };
     expect(verifyResolution("unit-signing-secret", tampered)).toBe(false);
+
+    // record-level verification: edits to the stored record OUTSIDE the
+    // signature object (e.g. the operator's note) are caught too
+    expect(verifyResolutionForRecord("unit-signing-secret", rec)).toBe(true);
+    expect(
+      verifyResolutionForRecord("unit-signing-secret", {
+        ...rec,
+        resolution: { ...rec.resolution!, note: "rewritten after the fact" },
+      }),
+    ).toBe(false);
     gw.close();
   });
 

@@ -40,7 +40,10 @@ export class AnthropicProvider implements LLMProvider {
         description: t.description,
         input_schema: t.inputSchema as Anthropic.Tool.InputSchema,
       })),
-      tool_choice: { type: "any" }, // exactly one tool call per turn
+      // Exactly one tool call per turn: without disable_parallel_tool_use the
+      // model may emit several tool_use blocks; the loop answers only the
+      // first, and the unanswered ids would 400 the next request.
+      tool_choice: { type: "any", disable_parallel_tool_use: true },
       messages: toMessages(req.turns),
     });
     const text =

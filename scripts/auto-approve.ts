@@ -22,6 +22,11 @@ import type { InterventionRecord } from "../src/escalation/store";
 const OPERATOR = "operator-jsmith";
 const count = Number(process.argv[2] ?? "1");
 const timeoutMs = Number(process.argv[3] ?? "240") * 1000;
+if (!Number.isInteger(count) || count < 1 || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+  // NaN would make the while-condition false and the script exit claiming success.
+  console.error("usage: tsx scripts/auto-approve.ts [count >= 1] [timeoutSeconds > 0]");
+  process.exit(2);
+}
 
 function loadDotEnv(): void {
   if (!existsSync(".env")) return;
@@ -63,19 +68,39 @@ async function main(): Promise<void> {
       if (e instanceof Error && e.message.includes("token")) throw e;
       continue; // console not up yet — the run has not reached its risky step
     }
-    const iv = list.find((x) => x.status === "pending" && x.request.type === "approval" && !done.has(x.request.id));
+    // Credit approvals resolved by anyone (e.g. a human already at the console)
+    // so the script exits instead of waiting out its timeout for finished work.
+    for (const x of list) {
+      if (x.request.type === "approval" && x.status === "resolved" && !done.has(x.request.id)) {
+        done.add(x.request.id);
+        console.log(
+          `auto-approve: ${x.request.id} resolved externally (${x.resolution?.disposition ?? "?"}) (${done.size}/${count})`,
+        );
+      }
+    }
+    if (done.size >= count) break;
+
+    // Prefer an approval this script already claimed but failed to resolve
+    // (transient error last pass) — it is no longer "pending" and would
+    // otherwise be skipped forever.
+    const mine = list.find(
+      (x) => x.status === "claimed" && x.claimedBy === OPERATOR && x.request.type === "approval" && !done.has(x.request.id),
+    );
+    const iv = mine ?? list.find((x) => x.status === "pending" && x.request.type === "approval" && !done.has(x.request.id));
     if (!iv) continue;
 
     const id = iv.request.id;
-    console.log(`auto-approve: pending approval ${id} — ${iv.request.reason}`);
-    const claim = await fetch(`${consoleUrl}/api/interventions/${encodeURIComponent(id)}/claim`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...AUTH },
-      body: JSON.stringify({ operator: OPERATOR }),
-    });
-    if (!claim.ok) {
-      console.error(`auto-approve: claim of ${id} failed (${claim.status})`);
-      continue;
+    if (!mine) {
+      console.log(`auto-approve: pending approval ${id} — ${iv.request.reason}`);
+      const claim = await fetch(`${consoleUrl}/api/interventions/${encodeURIComponent(id)}/claim`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...AUTH },
+        body: JSON.stringify({ operator: OPERATOR }),
+      });
+      if (!claim.ok) {
+        console.error(`auto-approve: claim of ${id} failed (${claim.status})`);
+        continue;
+      }
     }
     const resolve = await fetch(`${consoleUrl}/api/interventions/${encodeURIComponent(id)}/resolve`, {
       method: "POST",
