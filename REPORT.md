@@ -97,7 +97,10 @@ not on string matching. Every run also returns per-step telemetry (strategy rank
 durations). UI drift, the secondary concern: rising fallback-rank usage is the early-warning
 signal — live in `evidence/replay_20260913015027`, where a standing check recorded on member
 `12345` replays against `45678` and step s8 falls from the recorded-name locator to the
-parameterized `nearText` rank. `appFingerprint` mismatch fails fast at entry, and evidence
+parameterized `nearText` rank. `npm run health` turns that telemetry into the fleet-level signal:
+it aggregates strategy-rank usage per capability/step across all evidence runs and classifies
+each step `healthy | drifting | broken` (`--ci` exits non-zero on drift — a canary gate, not a
+dashboard mock-up). `appFingerprint` mismatch fails fast at entry, and evidence
 bundles make locator failures diagnosable (`evidence/replay_20260912173739` shows an injected
 interstitial detected and dismissed mid-run).
 
@@ -113,15 +116,24 @@ carry over unchanged; `css` ranks are simply skipped. A vision driver resolves v
 `elementDescription` + recorded bbox and text anchors. That is why every step carries
 description and bbox even though the web driver rarely needs them.
 
-Multi-tenant: hundreds of institutions run the same vendor product re-branded and re-versioned.
-The design is one **base artifact per vendor product** plus a thin per-tenant **binding overlay**
-— `{entrypoint, credentialsRef, per-step locator overrides, vocabulary map ("Member"→"Customer"),
-appFingerprint}` — merged at load. Semantic-first locators make most overrides unnecessary;
-when a tenant skins differ, you patch one strategy list, not re-record. Drift management:
-strategy-rank telemetry aggregated per tenant/app-version gives a locator-health signal;
-fingerprint mismatch blocks the run before any action; re-validation is a canary replay, and a
-bounded LLM-assisted re-discovery that *proposes* a locator patch for human approval is the
-designed (not built) repair path.
+Multi-tenant: hundreds of institutions run the same vendor product re-branded and re-versioned,
+so the unit of authorship must be one **base artifact per vendor product** plus a thin per-tenant
+**binding overlay** — built, not designed: `src/core/tenant.ts` +
+[tenants/cu-north.json](tenants/cu-north.json), merged at load by `replay --tenant cu-north`.
+The overlay carries `{entrypoint, requiredOrigins, appFingerprint, vocabulary map
+("Member"→"Customer"), last-resort per-step strategy overrides}`; vocabulary maps on **exact**
+string equality only (no substring cascades), mechanics (`urlMatches`, step values, extract
+patterns) are never mapped, the merge refuses to cross `appId`s, and the merged artifact is
+re-validated through the strict schema — a corrupt overlay cannot produce a runnable capability.
+The mock app ships the second tenant ("CU North": re-skinned, `tw_*` IDs instead of `ctl00_*`,
+customer vocabulary, port 4650), and `evidence/replay_20260913151918` replays the artifact
+*recorded on tenant A* against it: every step resolves at rank 0 via role/label/text — tenant A's
+`ctl00_*` css ranks never had to match — the semantic-first thesis paying out, while without the
+overlay the artifact's own origin pin denies the run at entry (fail closed, in the integration
+suite). Drift management: strategy-rank telemetry aggregated per tenant/app-version is the
+locator-health signal (`npm run health`, above); fingerprint mismatch blocks the run before any
+action; re-validation is a canary replay, and a bounded LLM-assisted re-discovery that *proposes*
+a locator patch for human approval is the designed (not built) repair path.
 
 ## Escalation & handoff
 
@@ -133,13 +145,17 @@ still failing after recoveries are exhausted.
 Control transfer is an explicit ownership state machine on the run: `agent → paused → human →
 agent | aborted`. The engine parks awaiting the gateway; every transition is logged with
 who/when/why. The intervention record carries capability, step id + intent, the reason
-(expected vs observed), screenshot, and live URL. The operator console (localhost:4700) is
-deliberately minimal — the *mechanism* is the point: the browser runs headed, and the human
-operates **the same browser context** the automation was using (same cookies, same page), not a
-fresh session. Human actions are recorded into the same `run.jsonl` as `actor:"human"` with
-sensitive values masked. Handback dispositions: `completed_step` (engine **re-verifies the failed
-step's own checkpoint** before continuing — trust but verify), `fixed_environment` (re-attempt
-the step), `abort`. Risky-action approval reuses the identical pipeline as intervention type
+(expected vs observed), screenshot, and live URL. The operator console (localhost:4700,
+shared-token auth — random per run unless `SCRIBE_CONSOLE_TOKEN` pins it; the CLI prints the
+tokened URL) is deliberately minimal — the *mechanism* is the point: the browser runs headed, and
+the human operates **the same browser context** the automation was using (same cookies, same
+page), not a fresh session. Human actions are recorded into the same `run.jsonl` as
+`actor:"human"` with sensitive values masked. Handback dispositions: `completed_step` (engine
+**re-verifies the failed step's own checkpoint** before continuing — trust but verify),
+`fixed_environment` (re-attempt the step), `abort`. At hand-back each resolution is HMAC-signed
+over a payload bound to the head of the run's hash-chained custody log — who approved what,
+holding control over which exact evidence trail, is verifiable and tamper-evident after the fact
+(`verifyResolution`). Risky-action approval reuses the identical pipeline as intervention type
 `approval` — one mechanism, two uses, both in committed evidence: the session-expiry assist
 below, and every `subaccount-open` replay (e.g. `evidence/replay_20260913015057`).
 
@@ -156,6 +172,11 @@ action rules. It is enforced at the single chokepoint inside `driver.act()`; dur
 the engine is additionally bound to global policy, during replay to the artifact's declared
 policy — the model asking nicely cannot widen it, which is also the prompt-injection stance:
 on-screen text is untrusted data and the chokepoint holds regardless of what the model decides.
+Below the chokepoint sits a network-layer backstop: the driver routes **every** request in the
+browser context and aborts off-allowlist ones in-flight, vetting redirects hop by hop (the
+`Location` target is checked before the browser follows it) — so a page-initiated redirect or
+injected script cannot carry the session, or its data, to an origin policy never approved, even
+between actions where `act()` is not looking.
 
 Risk classes: reads/navigation are `safe`; mutating submits are `risky`. Discovery always
 requires an approval intervention before a risky act. Replay executes risky steps unattended
@@ -171,26 +192,26 @@ act time; the perception layer masks secret values before the model sees them; t
 redacts sensitive values (`"***"`) including human-phase actions; screenshots of sensitive fills
 are masked; the Recorder's parameterization keeps raw inputs out of artifacts; raw model
 transcripts are not persisted — only distilled intents. Tests assert the hygiene (artifact and
-logs contain templates, never `Demo!Pass1`). Limits: the localhost operator console is
-unauthenticated (demo scope); extracted business data is governed only by per-field `sensitive`
-flags, not content-aware DLP; redaction is exact-value masking, so a secret echoed by the app in
-a transformed form would not be caught; and policy is enforced at `act()` with no network-layer
-backstop — a page-initiated redirect or scripted navigation to an off-allowlist origin is caught
-at the next observe/checkpoint (and the driver refuses to act there), not blocked in-flight.
+logs contain templates, never `Demo!Pass1`). Limits: extracted business data is governed only by
+per-field `sensitive` flags, not content-aware DLP; redaction is exact-value masking, so a secret
+echoed by the app in a transformed form would not be caught; and disposition signatures make the
+approval trail tamper-evident, but the default signing key derives from the console token — real
+non-repudiation needs per-operator keys, which is identity infrastructure out of demo scope.
 
 ## Cuts
 
-Deliberate, at clean seams: **operator console** is a bare localhost page (no auth, no
-screencast — the control-transfer model is real, the UI is not the point). **Desktop and vision
-drivers** are designed, not built — the artifact already records what they need. **Tenant
-overlays** are a designed schema, not code; no second app variant was built. **Assisted
-fallback** (bounded LLM repair on replay failure) is designed but cut to keep replay purity
-undiluted. Three capabilities are recorded against one app (read-only lookup, two-output
-standing check, mutating opener) — a demonstration set, not a cross-app library. Stretch goals
-picked: **approval gating**
-(`draft → approved` via `npm run approve`) and the **agent-facing catalog** (`npm run catalog`
-prints the contract view; `replay --capability <id> --param k=v` is the typed invocation).
+Deliberate, at clean seams: the **operator console** is a minimal localhost page (token-authed,
+signed dispositions — but no screencast: the control-transfer model is real, the UI is not the
+point). **Desktop and vision drivers** are designed, not built — the artifact already records
+what they need. **Assisted fallback** (bounded LLM repair on replay failure) is designed but cut
+to keep replay purity undiluted. Three capabilities are recorded against one vendor product
+(read-only lookup, two-output standing check, mutating opener) — a demonstration set, not a
+cross-app library, though the same product runs as two tenants. Stretch goals picked: **approval
+gating** (`draft → approved` via `npm run approve`), the **agent-facing catalog** (`npm run
+catalog` prints the contract view; `replay --capability <id> --param k=v` is the typed
+invocation), and the **tenant overlay demo** (`--tenant cu-north` replaying the tenant-A artifact
+on the re-skinned second tenant — see Heterogeneity & multi-tenant).
 
-Next, in order: tenant binding overlay + a re-skinned app variant to prove cross-tenant replay;
-locator-health reporting from the already-collected strategy-rank telemetry; CDP-based remote
-operator takeover; assisted-fallback repair proposals as reviewed artifact patches.
+Next, in order: CDP-based remote operator takeover (screencast for operators not at the host);
+assisted-fallback repair proposals as reviewed artifact patches; per-operator signing keys for
+true non-repudiation; a desktop (UIA/AX) driver behind the existing `SurfaceDriver` seam.

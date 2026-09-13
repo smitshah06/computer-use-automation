@@ -32,12 +32,14 @@ cp .env.example .env        # then edit
 |---|---|---|
 | `OPENAI_API_KEY` *or* `ANTHROPIC_API_KEY` | **discovery only** | pick provider with `--provider` / `SCRIBE_PROVIDER` |
 | `SCRIBE_SECRET_TELLER_USERNAME` / `..._PASSWORD` | discovery + replay | demo app creds (`teller1` / `Demo!Pass1`); referenced by artifacts as `{{secrets.*}}`, resolved only at runtime, never persisted |
+| `SCRIBE_CONSOLE_TOKEN` | optional | pins the operator-console auth token; unset, the CLI generates a random per-run token and prints the tokened URL. Set it when a script (e.g. `scripts/auto-approve.ts`) must call the console API |
+| `SCRIBE_SIGNING_SECRET` | optional | key for HMAC-signing operator dispositions (defaults to the console token) |
 
 **Replay needs no LLM key at all** — that is the point. The three committed capabilities in
 [capabilities/](capabilities/) — a read-only balance lookup, a two-output standing check, and a
 **mutating** sub-account opener — replay with just the two `SCRIBE_SECRET_*` vars set.
 
-Running without live services: `npm test` (62 unit + integration tests) needs **no API key and no
+Running without live services: `npm test` (91 unit + integration tests) needs **no API key and no
 running app** — integration tests boot their own target-app instances and drive the discovery
 loop with a scripted provider double.
 
@@ -78,7 +80,8 @@ npm run replay -- --capability member-savings-lookup --param memberId=12345 --in
 
 # 6. ESCALATION: inject one-shot session expiry -> checkpoint fails -> intervention
 npm run replay -- --capability member-savings-lookup --param memberId=12345 --inject session-expiry --headed
-# then open the operator console at http://127.0.0.1:4700 :
+# then open the operator console — the CLI prints its tokened URL
+# (http://127.0.0.1:4700/?token=…; auth required since every disposition is signed):
 #   claim -> re-authenticate in the headed browser window (same live session) ->
 #   resolve "completed_step" -> engine re-verifies the checkpoint and resumes
 # -> escalated { finalStatus: success, outputs: { savingsBalance: "$1,204.55" } }
@@ -113,7 +116,7 @@ pauses at the risky submit until an operator approves that one action:
 ```bash
 npm run replay -- --capability subaccount-open --param memberId=12345 \
   --param accountType=Checking --param "nickname=Rainy Day" --param depositAmount=40.00
-# pauses at s13 -> in the console at http://127.0.0.1:4700: claim -> resolve "approve_once"
+# pauses at s13 -> in the console (CLI prints the tokened URL): claim -> resolve "approve_once"
 # -> escalated { finalStatus: success, outputs: { confirmationNumber: "CU-2026-…" } }
 
 npm run replay -- --capability subaccount-open --param memberId=12345 \
@@ -121,11 +124,38 @@ npm run replay -- --capability subaccount-open --param memberId=12345 \
 # -> escalated { finalStatus: business_outcome, code: DEPOSIT_BELOW_MINIMUM }  (deposit < $5.00)
 ```
 
-No human at the console? `npx tsx scripts/auto-approve.ts 1 240 &` first — a scripted operator
-that grants the next approval through the same console HTTP API (claim → `approve_once`),
-exercising the identical control-transfer path.
+No human at the console? Set `SCRIBE_CONSOLE_TOKEN` in `.env` (so the replay CLI's console and
+the script share one token), then `npx tsx scripts/auto-approve.ts 1 240 &` first — a scripted
+operator that grants the next approval through the same console HTTP API (claim →
+`approve_once`), exercising the identical control-transfer path.
+
+### Multi-tenant: replay the tenant-A artifact on a re-skinned tenant B
+
+"CU North" is the same vendor product re-deployed for another institution — green branding,
+`tw_*` element IDs instead of `ctl00_*`, member→customer vocabulary — served on its own port.
+The committed overlay [tenants/cu-north.json](tenants/cu-north.json) adapts the artifact
+**recorded on tenant A** at load time: no re-recording, no LLM.
+
+```bash
+# Terminal 1 — tenant B at http://localhost:4650
+npm run target:north
+
+# Terminal 2 — same artifact, overlay applied at load
+npm run replay -- --capability member-savings-lookup --tenant cu-north --param memberId=12345
+# -> success { savingsBalance: "$1,204.55" } — telemetry shows EVERY step resolved at rank 0
+#    (role/labelText/nearText). Tenant A's ctl00_* css ranks never had to match tw_* markup:
+#    the semantic-first locator thesis doing the work.
+```
+
+Without `--tenant` the artifact fails closed on tenant B: its `requiredOrigins` still pins
+`localhost:4600`, so the entry navigation is denied at the policy chokepoint (proven in
+`test/integration/tenant.test.ts`). The binding maps vocabulary by **exact** string equality
+only, never touches mechanics (`urlMatches`, step values, extract patterns), refuses to merge
+across different `appId`s, and the merged artifact is re-validated through the strict schema.
 
 Other commands: `npm run catalog` (list capabilities as an agent-facing contract summary),
+`npm run health` (locator-health report: per-step strategy-rank drift aggregated across the
+committed evidence runs; `--ci` exits non-zero if any capability is drifting or broken),
 `--inject slow|error500` (the other two injectable faults), `--headed` on any run, `--no-console`
 to skip the operator console. Permission denials and validation errors need no injection — they
 are natural app states (member `66666` is restricted for tellers; the deposit form rejects
@@ -161,6 +191,7 @@ prints. (The standing-check and sub-account outputs are declared non-sensitive, 
 | `replay_20260913015045` | Standing check `99999` | `business_outcome MEMBER_NOT_FOUND` |
 | `replay_20260913015057` | Sub-account open (mutating) `12345` / Checking / `$40.00` | paused at risky submit → `approve_once` (operator-jsmith) → `escalated`, `finalStatus: success`, `confirmationNumber: "CU-2026-4182"` |
 | `replay_20260913015112` | Sub-account open, deposit `$2.00` | approved → app rejects deposit → `escalated`, `finalStatus: business_outcome DEPOSIT_BELOW_MINIMUM` |
+| `replay_20260913151918` | **Cross-tenant replay** — tenant-A artifact + `tenants/cu-north.json` overlay on CU North (`:4650`) | `success`, every step at its rank-0 semantic locator; the snapshotted `artifact.json` is the merged overlay that actually executed |
 
 The escalation log contains the full control-transfer audit trail: `control_transition`
 `agent→paused` (system), `paused→human` (operator-jsmith), `human→agent` (operator-jsmith), eight
@@ -179,15 +210,16 @@ src/agent/       discovery loop + Recorder (distills a run into a parameterized 
 src/replay/      deterministic executor + DeviationClassifier (NO import path to llm/ — enforced)
 src/escalation/  control-ownership state machine, intervention store, operator console
 src/evidence/    redacting JSONL run logger, screenshots, run directories
-src/target-app/  mock CU back-office (legacy-hostile markup) + fault injection
-src/cli/         discover / replay / approve / catalog
+src/target-app/  mock CU back-office (legacy-hostile markup, two tenant skins) + fault injection
+src/cli/         discover / replay / approve / catalog / health
+tenants/         per-tenant binding overlays (cu-north.json — the CU North re-skin)
 policy.yaml      deny-by-default allowlist: origins, action kinds, risky-action rules
 ```
 
 ## Checks
 
 ```bash
-npm test            # 62 tests: schema, policy, classifier, escalation, driver, replay, discovery
+npm test            # 91 tests: schema, policy, classifier, escalation, driver, replay, discovery, tenant overlay
 npm run typecheck   # strict tsc
 npm run lint        # eslint + dependency-boundary check (replay must not reach llm)
 ```
