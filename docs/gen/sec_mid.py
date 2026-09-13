@@ -7,21 +7,29 @@ from style import (
 
 # --------------------------------------------------------------------------- 5
 SCHEMA_SKELETON = r"""
-CapabilityArtifact (v1)                        // stored as artifacts/<id>@<version>.json
+CapabilityArtifact (v1, as built in core/artifact.ts)  // stored as capabilities/<id>.json
 |- schemaVersion: "1.0"                        // format version -> migration path
-|- capability: { id, name, description, version (semver), tags[] }
+|- capability: { id, name, description, version (semver) }
 |- target:     { appId, surface: "web", entrypoint (templated URL),
-|                appFingerprint: { titlePattern, markers[] } }   // fail fast on drift
-|- inputs[]:   { name, type, required, pattern?, sensitive, description, example? }
-|- outputs[]:  { name, type, description, sensitive, sourceStep }
-|- steps[]:    { id, intent, action, target?, value?, waitBefore?, checkpoint,
-|                risk: "safe"|"risky", onDeviation?[] }
-|- outcomes[]: { code, description, terminal, detector: Condition, extract?[] }
-|- recoveries[]: { id, detector: Condition, action, maxAttempts, appliesTo }
+|                appFingerprint: { titlePattern?, markers[] } }  // fail fast on drift
+|- inputs[]:   { name, type, required, pattern?, enumValues?, sensitive,
+|                description?, example? }
+|- outputs[]:  { name, type, sensitive, sourceStep, description? }
+|- steps[]:    { id, intent, action, target?, url?, value?, key?, sensitive,
+|                outputName?, extractPattern?, waitBefore?, checkpoint?,
+|                risk: "safe"|"risky" }
+|- outcomes[]: { code, description, terminal: true, detector: Condition }
+|- recoveries[]: { id, appliesTo: "global"|stepIds[], detector: Condition,
+|                  action: dismiss(target) | waitRetry(backoffMs) |
+|                          runSteps(stepIds), maxAttempts }
 |- successCheckpoint: Condition
-|- policy:     { requiredOrigins[], allowedActionKinds[], riskLevel,
-|                unattendedReplay: boolean }
-|- provenance: { provider, model, runId, recordedAt, reviewStatus: "draft"|"approved" }
+|- policy:     { requiredOrigins[], allowedActionKinds[],
+|                riskLevel: "readonly"|"mutating", unattendedReplay: boolean }
+|- provenance: { provider, model, runId, recordedAt, evidenceRef?,
+|                reviewStatus: "draft"|"approved", reviewedBy?, reviewedAt? }
+
+// Zod superRefine cross-checks at parse time: unique step ids, every
+// outputs[].sourceStep and recoveries[].appliesTo references a real step.
 """
 
 STEP_EXAMPLE = r"""
@@ -33,7 +41,7 @@ STEP_EXAMPLE = r"""
     "strategies": [                                              // ranked, tried in order
       { "kind": "role",      "role": "textbox", "name": "Member Number" },
       { "kind": "labelText", "value": "Member Number" },
-      { "kind": "nearText",  "value": "Member Number", "direction": "right" },
+      { "kind": "nearText",  "value": "Member Number" },
       { "kind": "css",       "value": "#ctl00_pnlSrch_txtMbr" },  // observed, brittle,
       { "kind": "bbox",      "value": [412, 236, 180, 24] }       //   per-tenant patchable
     ],
@@ -43,24 +51,23 @@ STEP_EXAMPLE = r"""
   "value": "{{inputs.memberId}}",                    // literal 12345 parameterized away
   "waitBefore": { "condition": { "elementVisible": { "kind": "labelText",
                     "value": "Member Number" } }, "timeoutMs": 5000 },
-  "checkpoint": { "all": [ { "valueMatches": { "target": "self",
-                    "pattern": "{{inputs.memberId}}" } } ] },
+  "checkpoint": { "valueMatches": { "target": { "kind": "labelText",
+                    "value": "Member Number" }, "pattern": "{{inputs.memberId}}" } },
   "risk": "safe"
 }
 """
 
 CONDITION_AST = r"""
-Condition :=
-    { "all":   Condition[] }             // conjunction
-  | { "any":   Condition[] }             // disjunction
+Condition :=                                       // core/conditions.ts, as built
+    { "all":   Condition[] }                       // conjunction
+  | { "any":   Condition[] }                       // disjunction
   | { "not":   Condition }
-  | { "urlMatches":     "<pattern>" }    // template-aware ("/members/{{inputs.memberId}}")
-  | { "titleMatches":   "<pattern>" }
-  | { "elementVisible": TargetDescriptor | Strategy }
-  | { "elementAbsent":  TargetDescriptor | Strategy }
-  | { "textPresent":    "<string|pattern>" }         // page or scoped to a target
-  | { "textAbsent":     "<string|pattern>" }
-  | { "valueMatches":   { target, pattern } }        // input value assertions
+  | { "urlMatches":     "<pattern>" }              // template-aware
+                                                   //   ("/members/{{inputs.memberId}}")
+  | { "textPresent":    "<string>" }
+  | { "elementVisible": LocatorStrategy }
+  | { "elementAbsent":  LocatorStrategy }
+  | { "valueMatches":   { target: LocatorStrategy, pattern } }  // input assertions
 """
 
 
@@ -80,10 +87,13 @@ def sec5():
     story.extend(code(SCHEMA_SKELETON, chunk=60))
     story.append(sp(3))
     story.append(P(
-        "Appendix A contains a complete, internally consistent artifact for the demo "
-        "capability member-savings-lookup. Everything is Zod-defined in core/; the "
-        "static types are inferred from the same definitions that validate at runtime, "
-        "so an artifact that parses is an artifact the engine can run."))
+        "Appendix A contains the committed artifact for member-savings-lookup, as the "
+        "Recorder actually emitted it from a real discovery run. Everything is "
+        "Zod-defined in core/; the static types are inferred from the same definitions "
+        "that validate at runtime, so an artifact that parses is an artifact the "
+        "engine can run. Three capabilities are committed: member-savings-lookup "
+        "(read), member-standing-check (read, four result shapes), and subaccount-open "
+        "(mutating, 14 steps through a confirmation screen)."))
     story.append(H2("5.2 A step, annotated"))
     story.extend(code(STEP_EXAMPLE, chunk=60))
     story.append(H2("5.3 Target descriptors: ranked, semantic-first locator strategies"))
@@ -101,18 +111,15 @@ def sec5():
             ["2", "labelText (associated label)",
              "Explicit label-control association; very stable on server-rendered "
              "form-heavy enterprise apps."],
-            ["3", "nearText (anchor text + direction)",
+            ["3", "nearText (anchor on visible text)",
              "Legacy tables often have no label association at all - the visible text "
-             "next to the control is the only semantic anchor. Survives non-semantic "
+             "near the control is the only semantic anchor. Survives non-semantic "
              "markup; this is the no-clean-DOM workhorse."],
-            ["4", "relativeTo (structural relation)",
-             "For grids: \"the balance cell in the row containing {{inputs.memberId}}\". "
-             "Anchors on data, not on markup positions."],
-            ["5", "css / xpath (as observed)",
+            ["4", "css (as observed)",
              "Precise and fast when it works, but brittle and tenant-specific "
              "(generated IDs). Recorded because it was true at discovery; the natural "
              "slot for per-tenant overrides (Section 10)."],
-            ["6", "bbox + elementDescription",
+            ["5", "bbox + elementDescription",
              "Universal last resort; also the bridge to screenshot/vision drivers and "
              "desktop surfaces. Description is for humans and vision models alike."],
         ],
@@ -161,9 +168,10 @@ def sec5():
         "verifies it up front and fails fast with DRIFT_SUSPECTED rather than acting "
         "on a changed app.",
         "<b>reviewStatus: draft -> approved</b> is set by a human after reading the "
-        "artifact (a git PR review of the JSON). Risky capabilities cannot replay "
-        "unattended while in draft - the approval state is enforced by the policy "
-        "engine, not by convention.",
+        "artifact (npm run approve -- --capability <id> --reviewer <name> stamps "
+        "reviewedBy and reviewedAt; the JSON diff is a git PR review). Risky "
+        "capabilities cannot replay unattended while in draft - the approval state is "
+        "enforced by the policy engine, not by convention.",
     ]))
     story.append(H2("5.7 Alternatives rejected"))
     story.append(tbl(
@@ -222,20 +230,27 @@ replay(artifact, params):
 """
 
 RESULT_CONTRACT = r"""
-type ReplayResult =
-  | { status: "success";          outputs: Record<string, Value>;
-      telemetry: RunTelemetry; evidenceRef: string }
-  | { status: "business_outcome"; code: string;            // e.g. "MEMBER_NOT_FOUND"
-      message: string; extracted?: Record<string, Value>; evidenceRef: string }
-  | { status: "hard_failure";     error: { stepId: string; intent: string;
-      expected: Condition; observed: StateSummary; evidencePaths: string[] };
-      telemetry: RunTelemetry }
-  | { status: "escalated";        intervention: { id: string; reason: string;
-      resolution: "human_completed" | "human_fixed_resumed" | "aborted" };
-      finalStatus: "success" | "business_outcome" | "aborted"; evidenceRef: string };
+// core/result.ts, as built: RunOutcome, a Zod discriminated union on status.
+type RunOutcome =
+  | { status: "success";          outputs: Record<string, string> }
+  | { status: "business_outcome"; code: string;           // e.g. "MEMBER_NOT_FOUND"
+      description: string; extracted: Record<string, string> }
+  | { status: "hard_failure";     error: { stepId?, intent?, expected: string,
+      observed: string, evidence: string[] } }            // paths into the run dir
+  | { status: "escalated";        interventions: InterventionSummary[];   // >= 1
+      finalStatus: "success" | "business_outcome" | "hard_failure" | "aborted";
+      outputs?; code?; description?; extracted?; error? };
+      // ^ the underlying result is carried through the escalation wrapper
 
-// RunTelemetry: per-step { strategyRankUsed, attempts, durationMs } + totals.
-// The wrapper never throws for business conditions: outcomes are values, not errors.
+// InterventionSummary: { id, reason, type: "assist" | "approval",
+//   disposition: fixed_environment | completed_step | approve_once | deny
+//              | abort | expired,  operator? }
+//
+// The RunResult wrapper adds: runId, mode, capability id + version, params
+// (sensitive values pre-masked), timestamps, evidenceDir, and per-step
+// telemetry: { stepId, strategyRank (0 = primary; rising = locator drift),
+// strategyKind, targeted, attempts, recoveriesApplied[], durationMs }.
+// Business conditions are values, not thrown errors.
 """
 
 
@@ -279,8 +294,9 @@ def sec6():
              "Detector matches; extract any declared fields; stop cleanly.",
              "status=business_outcome, code=MEMBER_NOT_FOUND"],
             ["Validation error on a form", "Business outcome (declared)",
-             "Detector matches field-error state; extract the messages.",
-             "code=VALIDATION_REJECTED + messages"],
+             "Detector matches the field-error state; committed example: the "
+             "sub-account form rejecting a low deposit.",
+             "code=DEPOSIT_BELOW_MINIMUM"],
             ["Permission denied", "Business outcome (terminal)",
              "Legitimate state the caller must know; never retried.",
              "code=PERMISSION_DENIED"],
@@ -291,7 +307,8 @@ def sec6():
              "Bounded wait-and-retry with backoff (maxAttempts).",
              "Success, or hard failure once bounds exhaust"],
             ["Session timeout / expiry", "Recoverable (bounded) or escalate",
-             "Re-auth recovery if policy grants a secretRef; otherwise intervention.",
+             "A declared runSteps recovery re-runs the login steps ({{secrets.*}} "
+             "resolved from env); otherwise intervention.",
              "Success after re-auth, or status=escalated"],
             ["Unexpected unknown dialog", "Hard failure -> escalate",
              "No detector matches: never dismiss what we cannot name.",
@@ -320,12 +337,19 @@ def sec6():
     story.append(H2("6.4 Result contract"))
     story.extend(code(RESULT_CONTRACT, chunk=44))
     story.append(sp(3))
+    story.append(P(
+        "One deliberate property of the escalated arm: it wraps the underlying result "
+        "rather than replacing it. A run that needed a human still returns its business "
+        "answer - the committed escalation evidence ends in finalStatus=success with "
+        "outputs, plus the intervention record of who helped and how. Callers that "
+        "only care about the answer read finalStatus; callers that audit read the "
+        "interventions array."))
     story.append(H2("6.5 What determinism means here"))
     story.append(P(
         "Same artifact + same params + same app state produces the same action "
         "sequence and the same classification. Controlled: no model calls (enforced "
         "by the import-boundary lint on replay/); branching only through declared "
-        "detectors; fixed viewport, locale, and timezone on the browser context; "
+        "detectors; fixed viewport on the browser context; "
         "template rendering is pure. Allowed to vary: timing within bounded waits and "
         "which locator rank matched - both are recorded as telemetry, not silent. "
         "UI drift - secondary per the brief - surfaces as rising fallback depth or a "
@@ -354,21 +378,32 @@ STATE_MACHINE = r"""
 """
 
 INTERVENTION_JSON = r"""
+// Committed: evidence/replay_escalation_20260912180848/interventions.json
 {
-  "id": "int_2026_0911_0142",
-  "runId": "replay_a8c3",
-  "capability": "member-savings-lookup@1.0.0",
-  "phase": "replay",
-  "stepId": "s2", "stepIntent": "Log in as the teller",
-  "reason": "recovery_exhausted: session-expiry recovery failed twice",
-  "classification": "hard_failure_candidate",
-  "state": { "url": "http://localhost:4600/login?expired=1",
-             "screenshot": "evidence/replay_a8c3/screens/012_intervention.png",
-             "a11ySnapshot": "evidence/replay_a8c3/snapshots/012.json" },
-  "requested": "fixed_environment",       // what the system thinks it needs
-  "controlToken": { "holder": "system", "since": "2026-09-11T01:42:07Z" },
-  "expiresAt": "2026-09-11T02:12:07Z"     // stale interventions abort safely
-}
+  "request": {
+    "id": "iv_replay_escalation_20260912180848_1",
+    "runId": "replay_escalation_20260912180848",
+    "type": "assist",                          // or "approval" for risky steps
+    "capabilityId": "member-savings-lookup",
+    "reason": "urlMatches(/desk) — observed: checkpoint not satisfied",
+    "stepId": "s4",
+    "intent": "Sign in to teller system",
+    "currentUrl": "http://localhost:4600/login?expired=1",
+    "screenshotPath": "screenshots/004_s4_intervention.png",
+    "requestedAt": "2026-09-12T18:08:52.174Z",
+    "expiresAt": "2026-09-12T18:38:52.174Z"    // TTL (30 min policy default);
+  },                                           //   a claim stops the clock
+  "status": "resolved",             // pending -> claimed -> resolved | expired
+  "claimedBy": "operator-jsmith",
+  "claimedAt": "2026-09-12T18:08:52.221Z",
+  "resolution": {
+    "disposition": "completed_step",
+    "operator": "operator-jsmith",
+    "note": "re-authenticated in the live session; step's own checkpoint
+             should now hold"
+  },
+  "resolvedAt": "2026-09-12T18:08:52.299Z"
+}   // resolved records also carry an HMAC signature block — Section 7.6
 """
 
 
@@ -407,7 +442,11 @@ def sec7():
         "the RunController exposes an awaitControl() gate the executor passes through "
         "before every step, and the driver tags every action with the current holder. "
         "This is the seam the brief asks about - pause, cede, resume on the same "
-        "session - expressed as a mutex plus a state machine rather than convention."))
+        "session - expressed as a mutex plus a state machine rather than convention. "
+        "As built, custody history is also <b>tamper-evident</b>: every transition is "
+        "written to run.jsonl as a control_transition event carrying the head of a "
+        "runId-seeded SHA-256 hash chain, so editing any historical transition breaks "
+        "every chain hash recorded after it."))
     story.append(H2("7.3 The intervention request"))
     story.extend(code(INTERVENTION_JSON, chunk=44))
     story.append(H2("7.4 Taking control of the live session"))
@@ -417,7 +456,11 @@ def sec7():
         "The <b>operator console</b> (a deliberately minimal local web page, "
         "localhost:4700) lists open interventions with full context: capability, "
         "step and intent, reason, screenshot, current URL. Claiming one flips the "
-        "state machine to HUMAN and hands the operator the token.",
+        "state machine to HUMAN and hands the operator the token. Every console "
+        "route requires a bearer token (x-scribe-token header, or ?token= in the "
+        "CLI-printed URL for the dashboard), compared timing-safe; set "
+        "SCRIBE_CONSOLE_TOKEN for a stable token, otherwise each run mints a fresh "
+        "random one.",
         "The operator acts <b>directly in the same browser window</b>. An injected "
         "recorder (a page binding capturing clicks, fills, and navigations, with "
         "values redacted) writes each human action into the same evidence stream "
@@ -431,24 +474,30 @@ def sec7():
     ]))
     story.append(H2("7.5 Handback and resume semantics"))
     story.append(tbl(
-        ["Disposition", "Meaning", "Engine behavior on resume"],
+        ["Disposition", "Meaning", "Engine behavior on resume (as built)"],
         [
             ["fixed_environment", "\"I repaired the state (e.g. re-logged-in); the "
              "step never completed.\"",
-             "Re-verify app fingerprint; re-run the current step from its waitBefore; "
-             "continue normally."],
-            ["completed_step", "\"I performed this step (perhaps several) manually.\"",
-             "Verify the current step's checkpoint; if it passes, advance; probe "
-             "subsequent checkpoints to find the furthest verified step before "
-             "continuing - never re-execute a mutating step a human already did."],
+             "Checkpoint-first: if the operator's fix already restored the step's "
+             "postcondition, re-acting would double-apply it, so the engine advances; "
+             "otherwise the step is retried from its waitBefore."],
+            ["completed_step", "\"I performed this step manually.\"",
+             "Verify the current step's checkpoint against the live session; pass "
+             "means advance, fail means hard failure (\"operator marked the step "
+             "complete but its checkpoint still fails\") - never re-execute a "
+             "mutating step a human already did."],
             ["approve_once / deny", "Decision on a risky-action approval request.",
-             "Execute the gated step exactly once, or classify the run as blocked "
-             "and stop with a clear result."],
+             "approve_once is consumed by exactly one executed act attempt - a retry "
+             "of the same step must re-ask; deny classifies the run as blocked and "
+             "stops with a clear result."],
             ["abort", "\"This run should not continue.\"",
-             "Terminal: result status escalated with resolution=aborted, evidence "
+             "Terminal: result status escalated with finalStatus=aborted, evidence "
              "sealed."],
+            ["expired", "Nobody claimed the intervention before its TTL.",
+             "Fail closed: the run ends escalated with finalStatus=aborted. A claim "
+             "stops the clock, so a human actively working is never timed out."],
         ],
-        [86, 168, CONTENT_W - 86 - 168], bold_first_col=True))
+        [86, 150, CONTENT_W - 86 - 150], bold_first_col=True))
     story.append(sp(4))
     story.append(callout("Why checkpoints make resume safe", [
         "Resume never trusts the human's claim: it trusts the artifact's per-step "
@@ -456,6 +505,32 @@ def sec7():
         "intended; the engine verifies what is true. This is also why per-step "
         "checkpoints (Section 6.2) are non-negotiable in the schema: they are the "
         "re-entry tests for handoff, not just failure locators.",
+    ]))
+    story.append(sp(2))
+    story.append(H2("7.6 Tamper-evident dispositions (built)"))
+    story.append(P(
+        "A resolution record (\"this operator approved this risky step\") is an "
+        "accountability artifact; anyone with write access to the evidence directory "
+        "could otherwise edit it after the fact. As built, every operator disposition "
+        "is <b>HMAC-SHA256 signed</b> over a domain-separated, fixed-order canonical "
+        "payload (domain scribe.resolution.v2) binding interventionId, runId, "
+        "capabilityId, stepId, disposition, operator, note, resolvedAt, <b>and the "
+        "control-chain head at the moment of hand-back</b> - so a signature for "
+        "\"approve step s13 of subaccount-open in run X\" cannot be replayed against, "
+        "or reinterpreted as, anything else, and is pinned to the exact custody "
+        "history it happened under."))
+    story.extend(bull([
+        "<b>Auditor check:</b> verifyResolutionForRecord() recomputes the payload "
+        "from the <i>stored</i> record and verifies the MAC against that - editing "
+        "resolution.note or request.capabilityId in interventions.json fails "
+        "verification even if the signature object itself is left untouched.",
+        "<b>Key handling:</b> the signing key comes from SCRIBE_SIGNING_SECRET "
+        "(defaulting to the console token), identified in the record by a "
+        "fingerprint keyId; comparisons are timing-safe.",
+        "<b>Honest scope cut:</b> HMAC with one shared key means verifier = trusted "
+        "auditor holding the key. Production swaps in per-operator identity (OIDC) "
+        "and KMS-held asymmetric keys behind the same seam; nothing outside the "
+        "signing module knows the algorithm.",
     ]))
     story.append(PageBreak())
     return story
@@ -509,7 +584,8 @@ def sec8():
              "from the environment at runtime."],
             ["Logs", "The evidence logger applies redaction before write: values of "
              "sensitive-flagged params/outputs and any {{secrets.*}} resolution are "
-             "masked (never logged in the clear, anywhere)."],
+             "masked (never logged in the clear, anywhere) - including URL-encoded "
+             "variants, so a secret embedded in a query string is caught too."],
             ["Screenshots", "Steps that touch sensitive-flagged fields are captured "
              "with Playwright's mask option over those locators; a per-step "
              "screenshot=off escape hatch exists for fully sensitive screens."],
@@ -521,7 +597,43 @@ def sec8():
         ],
         [70, CONTENT_W - 70], bold_first_col=True))
     story.append(sp(4))
-    story.append(H2("8.5 Prompt-injection stance and honest limits"))
+    story.append(H2("8.5 The network-layer backstop (added during implementation)"))
+    story.append(P(
+        "The act() chokepoint refuses to <i>initiate</i> off-allowlist actions - but a "
+        "malicious or compromised page can initiate traffic by itself: tracker pixels, "
+        "scripted navigations, server-side redirects. Implementation therefore added a "
+        "second enforcement line at the network layer, inside the driver, and it is "
+        "the one place where building the system overturned the original design:"))
+    story.extend(bull([
+        "<b>Route interception:</b> every request in the browser context passes a "
+        "context.route handler; requests to off-allowlist origins are aborted "
+        "in-flight and logged as net_blocked events - the request never leaves the "
+        "browser. This covers page-initiated subresources and link navigations alike.",
+        "<b>Server redirects vetted at the source:</b> the handler fetches with "
+        "maxRedirects: 0 and vets the first Location header; an off-allowlist "
+        "destination is replaced with a synthetic 502 blocking response, so the "
+        "browser never follows it and the run stays on the allowlisted origin.",
+        "<b>The uninterceptable hop:</b> Playwright route handlers are never "
+        "re-invoked for deeper hops of a redirect chain (verified empirically: when a "
+        "handler fulfills a 3xx, the browser follows it on the direct network path). "
+        "A request-stream watchdog catches any redirectedFrom() hop whose URL leaves "
+        "the allowlist, records the violation, and tears the browser context down - "
+        "the run fails closed. This is detection-and-kill, not prevention: one hop's "
+        "egress can race the teardown, a residual that is documented and asserted "
+        "as such in the integration tests rather than papered over.",
+        "<b>A rejected fix, on the record:</b> probing chain hops from Node before "
+        "letting the browser proceed looked airtight but executes every hop twice - "
+        "which corrupts one-shot server state. The mock app's armed session-expiry "
+        "fault fired on the probe, the browser never saw the expiry, and four "
+        "integration tests failed; first-hop vetting plus the watchdog replaced it. "
+        "Chain-walking a stateful server from outside the browser is a design error.",
+        "<b>Side channels closed:</b> service workers are blocked at context "
+        "creation (no script-controlled fetch layer outside the routes) and "
+        "WebSockets are denied wholesale (closed with policy code 1008) - policy "
+        "cannot vet a full-duplex stream, so it refuses it.",
+    ]))
+    story.append(cpb(120))
+    story.append(H2("8.6 Prompt-injection stance and honest limits"))
     story.extend(bull([
         "Page content is <b>untrusted input</b>: the agent's system prompt instructs "
         "the model to treat on-screen text as data, but the real guarantee is "
@@ -535,41 +647,60 @@ def sec8():
         "rather than papered over.",
     ]))
     story.append(cpb(170))
-    story.append(H2("8.6 policy.yaml (excerpt; full file in Appendix C)"))
+    story.append(H2("8.7 policy.yaml (excerpt; committed file in Appendix C)"))
     story.extend(code(
         "allowlist:\n"
-        "  origins: [\"http://localhost:4600\"]\n"
-        "  actionKinds: [navigate, click, fill, select, press, extract]\n"
-        "risk:\n"
-        "  riskyActionKinds: [submit]\n"
-        "  riskyUrlPatterns: [\"**/subaccounts/new/confirm\"]\n"
-        "  unattendedRiskyReplay: false      # artifact may not override to true\n"
-        "budgets: { maxSteps: 25, stepTimeoutMs: 15000, runTimeoutMs: 300000 }\n"
-        "redaction: { maskSecrets: always, maskSensitiveParams: always }"))
+        "  origins:\n"
+        "    - http://localhost:4600   # mock CU back-office - tenant A\n"
+        "    - http://localhost:4650   # re-skinned tenant B (CU North)\n"
+        "actionKinds: [navigate, click, fill, select, press, extract]\n"
+        "risky:\n"
+        "  discoveryRequiresConfirmation: true       # human approves every mutation\n"
+        "  unattendedRequiresApprovedArtifact: true  # risky replay needs review\n"
+        "budgets: { discoveryMaxTurns: 40, stepTimeoutMs: 15000,\n"
+        "           runTimeoutMs: 300000, maxStepAttempts: 3 }\n"
+        "escalation: { operatorPort: 4700, interventionTtlMinutes: 30 }\n"
+        "redaction:\n"
+        "  maskReplacement: \"***\"\n"
+        "  extraSecretEnvPrefixes: [\"SCRIBE_SECRET_\"]"))
     story.append(PageBreak())
     return story
 
 
 # --------------------------------------------------------------------------- 9
 EVIDENCE_TREE = r"""
-evidence/
-  disc_7f2e/                      # discovery run (committed as required proof)
-    run.jsonl                     # every event, see record shape below
-    screens/001_observe.png ...   # per step + checkpoints + failure
-    artifact.draft.json           # what the Recorder emitted
-    result.json
-  replay_a8c3/                    # happy-path replay
-  replay_b911/                    # MEMBER_NOT_FOUND business outcome
-  replay_c04d/                    # injected session expiry -> escalated -> resumed
-    interventions/int_...json     # request + claim + dispositions
-    run.jsonl                     # includes actor:"human" entries from the recorder
+evidence/                             # 18 committed run directories
+  disc_20260912173144/                # real discovery recording (OpenAI gpt-4o)
+    run.jsonl                         # every event; record shape below
+    screenshots/001_... .png          # per turn + outcome + stuck captures
+    artifact.json                     # what the Recorder emitted
+    discovery-summary.json
+  disc_20260912173538/                # outcome probe: declare_outcome run
+    outcome.json                      #   merged into the artifact by the CLI
+  ... 5 more disc_* dirs              # probes + recordings for the other
+                                      #   two capabilities
+  replay_20260912173725/              # happy path (success)
+    run.jsonl / result.json / artifact.json / screenshots/
+  replay_20260912173732/              # business outcome: MEMBER_NOT_FOUND
+  replay_20260912173739/              # injected interstitial -> recovery -> success
+  replay_20260913015019..45/          # standing check: Active, Dormant,
+                                      #   ACCESS_DENIED, MEMBER_NOT_FOUND
+  replay_20260913015057/              # risky submit -> approve_once -> escalated,
+                                      #   finalStatus success (confirmation no.)
+  replay_20260913015112/              # validation outcome carried through
+                                      #   escalation: DEPOSIT_BELOW_MINIMUM
+  replay_20260913151918/              # cross-tenant replay on CU North (:4650)
+  replay_escalation_20260912180848/   # session expiry -> human -> resumed
+    interventions.json                # request + claim + disposition
+    run.jsonl                         # actor:"human" entries + control chain
 
-run.jsonl record:
-  { ts, runId, actor: "agent"|"replay"|"human"|"policy",
-    phase, stepId?, event, action?, target?, outcome?,
-    reasoning?,            // model intent during discovery (redacted)
-    durationMs?, evidence? // relative paths to screenshots/snapshots
-  }
+run.jsonl record (as built):
+  { seq, ts, actor: "agent"|"replay"|"human"|"operator"|"system",
+    type, ...event-specific fields }
+  // event types include: run_start, act_click/act_fill/act_navigate (with
+  // intent + target), step_start/step_done, checkpoint evaluations,
+  // recovery_applied, outcome_declared, net_blocked, control_transition
+  // (with chainHash), human_action, intervention_resolved, run_finished
 """
 
 
@@ -586,10 +717,15 @@ def sec9():
         "writes pass through the redacting logger (Section 8.4)."))
     story.extend(code(EVIDENCE_TREE, chunk=44))
     story.append(P(
-        "The four directories named above are exactly what gets committed to "
-        "/evidence/ for the graders: the real discovery run the brief demands, plus "
-        "the three replay scenarios that exercise the taxonomy (success, business "
-        "outcome, escalation with human resume). A Playwright trace.zip per run is "
-        "kept locally and referenced, committed only if size-reasonable."))
+        "Eighteen run directories are committed: seven discovery runs (the real "
+        "recordings plus the outcome probes that declared MEMBER_NOT_FOUND, "
+        "ACCESS_DENIED, and DEPOSIT_BELOW_MINIMUM), ten replays exercising every arm "
+        "of the taxonomy - happy paths, both terminal business outcomes, an "
+        "interstitial recovery, a risky approve_once run, a validation outcome "
+        "carried through escalation, and a cross-tenant replay on the second tenant "
+        "app - and one escalated run with a live human hand-off. Beyond the raw "
+        "record, the telemetry is consumed: npm run health aggregates strategy ranks, "
+        "recoveries, and durations across evidence/ into a per-capability "
+        "locator-health drift report (Section 10.3)."))
     story.append(sp(2))
     return story

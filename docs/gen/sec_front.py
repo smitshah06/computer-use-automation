@@ -31,11 +31,11 @@ def cover():
 
     meta = [
         ["Assignment", "Take-Home Project: Computer-Use Automation System (interface.ai)"],
-        ["Deliverable", "Detailed design + implementation plan, justified against the published evaluation criteria"],
+        ["Deliverable", "Design document justified against the published evaluation criteria, revised to describe the system as built"],
         ["Stack", "TypeScript + Node.js 22, Playwright, LLM provider adapter (Anthropic + OpenAI), Zod"],
-        ["Target surface", "Locally built mock credit-union back-office app (deliberately legacy-hostile)"],
-        ["Date", "September 2026"],
-        ["Status", "Design baseline v1.0 - ready for implementation"],
+        ["Target surface", "Locally built mock credit-union back-office app (deliberately legacy-hostile), plus a re-skinned second-tenant variant"],
+        ["Date", "September 2026 (as-built revision: September 13)"],
+        ["Status", "As-built v1.1 - implementation complete; 93/93 tests green across 14 files"],
     ]
     rows = [[Paragraph(k, S_META_K), Paragraph(v, S_META_V)] for k, v in meta]
     mt = Table(rows, colWidths=[110, CONTENT_W - 110])
@@ -59,7 +59,11 @@ def cover():
         "the decision, why it wins, the alternatives it beat and why they lose, and the "
         "evaluation criterion it serves. Section 2 maps the whole design onto the "
         "grading rubric; Sections 5-8 are the load-bearing pieces (artifact schema, "
-        "deterministic replay, escalation, safety); Section 14 is the build plan."))
+        "deterministic replay, escalation, safety); Section 14 records the build plan "
+        "as executed. This revision replaces the pre-implementation baseline: schemas, "
+        "commands, and examples below are taken from the shipped repository, and "
+        "places where implementation experience overturned the original design are "
+        "called out explicitly (notably the redirect backstop, Section 8.5)."))
     story.append(NextPageTemplate("body"))
     story.append(PageBreak())
     return story
@@ -78,8 +82,11 @@ def toc_page():
 def sec1():
     story = [H1("1. Executive summary")]
     story.append(P(
-        "This plan describes <b>Scribe</b>, a small but complete computer-use automation "
-        "system for the interface.ai take-home. Scribe does four things end to end: "
+        "This document describes <b>Scribe</b>, a small but complete computer-use "
+        "automation system built for the interface.ai take-home. Everything described "
+        "here is implemented: the claims below are backed by the committed test suite "
+        "(93 tests across 14 files, all green) and by committed evidence runs. "
+        "Scribe does four things end to end: "
         "(1) an LLM-driven agent accomplishes a natural-language goal against a live UI; "
         "(2) a <b>Recorder</b> distills that successful run into a typed, versioned, "
         "human-reviewable <b>capability artifact</b>; (3) a <b>replay engine</b> executes "
@@ -94,7 +101,9 @@ def sec1():
         "<b>mock credit-union back-office</b> so that the exact runtime failures the brief "
         "cares about (record not found, validation errors, permission denials, session "
         "expiry, interstitial dialogs, slow loads) can be reproduced on demand and "
-        "demonstrated in committed evidence."))
+        "demonstrated in committed evidence. A re-skinned second-tenant variant of the "
+        "same app (\"CU North TellerWorks\": different branding, labels, and origin) "
+        "exists to prove artifact reuse across tenants without re-recording."))
     story.append(sp(2))
     story.append(H2("1.1 Positioning against the brief"))
     story.append(P(
@@ -134,21 +143,33 @@ def sec1():
         ],
         [80, 150, CONTENT_W - 230], bold_first_col=True))
     story.append(sp(4))
-    story.append(H2("1.3 What will be demonstrated"))
+    story.append(H2("1.3 What is demonstrated (committed evidence and tests)"))
     story.extend(bull([
-        "<b>Discovery:</b> a real LLM-driven run completing \"Look up member 12345 and "
-        "read their current savings balance\" against the live mock app, with evidence.",
-        "<b>Replay (happy path):</b> the saved artifact re-run with params, no LLM, "
-        "checkpoint-verified, returning typed outputs.",
-        "<b>Replay (business outcome):</b> memberId=99999 returns MEMBER_NOT_FOUND as a "
-        "legitimate, structured result - not an error.",
+        "<b>Discovery:</b> real LLM-driven runs (committed provenance: OpenAI gpt-4o) "
+        "completing \"Look up member 12345 and read their current savings balance\" and "
+        "two further goals against the live mock app - three committed capabilities: "
+        "member-savings-lookup, member-standing-check, subaccount-open.",
+        "<b>Replay (happy path):</b> each saved artifact re-run with params, no LLM in "
+        "the process, checkpoint-verified, returning typed (and redacted) outputs.",
+        "<b>Replay (business outcomes):</b> memberId=99999 returns MEMBER_NOT_FOUND and "
+        "memberId=66666 returns ACCESS_DENIED as legitimate, structured results - not "
+        "errors - alongside success variants (Active and Dormant standing).",
         "<b>Replay (recovery):</b> an injected interstitial dialog is detected and "
-        "dismissed by a declared recovery; a slow load is retried within bounds.",
+        "dismissed by a declared recovery; a slow load is retried within bounds - both "
+        "visible in committed telemetry.",
         "<b>Escalation:</b> an injected session expiry exhausts recovery, raises an "
         "intervention, a human takes over the live browser, logs in manually, hands "
-        "back, and the run resumes and completes - all captured in evidence.",
-        "<b>Safety:</b> allowlist enforcement blocking an off-policy navigation, a risky "
-        "(mutating) step gated on approval, and redaction of sensitive values in "
+        "back with a cryptographically signed disposition, and the run resumes and "
+        "completes - all captured in evidence.",
+        "<b>Risky-action approval:</b> the mutating sub-account-open submit pauses for "
+        "operator approval; a single-use approve_once lets exactly one act attempt "
+        "proceed, and the run finishes with a confirmation number.",
+        "<b>Cross-tenant reuse:</b> the identical artifact replays against the "
+        "re-skinned CU North tenant (different origin, branding, and vocabulary) via a "
+        "thin binding overlay - no re-recording, committed as evidence.",
+        "<b>Safety:</b> allowlist enforcement at the act() chokepoint plus a "
+        "network-layer backstop that aborts page-initiated off-allowlist traffic "
+        "(including multi-hop redirect chains); redaction of sensitive values in "
         "artifacts, logs, and screenshots.",
     ]))
     story.append(PageBreak())
@@ -226,8 +247,10 @@ def sec2():
             ["3.6 Escalation and handoff", "Intervention requests with context; live "
              "session control transfer; human-action recording; resume semantics. "
              "Section 7."],
-            ["3.7 Heterogeneity and scale (design)", "Surface abstraction and "
-             "multi-tenant overlay model; drift detection. Section 10."],
+            ["3.7 Heterogeneity and scale", "Surface abstraction (design) and "
+             "multi-tenant overlay model with a working cross-tenant replay against a "
+             "second tenant app (built); drift telemetry + locator-health report "
+             "(built). Section 10."],
         ],
         [120, CONTENT_W - 120], bold_first_col=True))
     story.append(PageBreak())
@@ -238,7 +261,7 @@ def sec2():
 ARCH_DIAGRAM = r"""
     +----------------------------------------------------------------------+
     |                                 CLI                                  |
-    |                discover | replay | operator | catalog                |
+    |            discover | replay | approve | catalog | health            |
     +--------+------------------------+------------------------+-----------+
              |                        |                        |
     +--------v---------+     +--------v---------+     +--------v---------+
@@ -312,7 +335,7 @@ def sec3():
              "run directory management.", "core"],
             ["target-app/", "Mock CU back-office (Express + EJS) with fault-injection "
              "hooks. Runs standalone; no imports from the system.", "nothing"],
-            ["cli/", "Command wiring: discover, replay, operator, catalog.", "all"],
+            ["cli/", "Command wiring: discover, replay, approve, catalog, health.", "all"],
         ],
         [62, CONTENT_W - 62 - 118, 118], bold_first_col=True))
     story.append(sp(4))
@@ -322,7 +345,7 @@ def sec3():
         "(snapshot - LLM decision - policy check - act - record) until the model marks "
         "success or a stop condition fires; the Recorder then distills the action trace "
         "into a CapabilityArtifact, replacing literal values with parameter references, "
-        "and writes it to artifacts/ as reviewable JSON.",
+        "and writes it to capabilities/ as reviewable JSON.",
         "<b>Replay:</b> artifact + params in - preflight (validate params with Zod, "
         "load policy, verify app fingerprint) - per-step execute-and-verify - on "
         "deviation, classify (outcome / recovery / hard failure) - typed result out. "
@@ -408,8 +431,8 @@ def sec4():
              "slow loads. A local app makes each reproducible on demand via injection "
              "flags - so the committed evidence can show every class. Banking-shaped "
              "flows (member search, balances, sub-account open) mirror the brief's own "
-             "examples. Offline and ToS-clean for reviewers; enables a tenant-B "
-             "variant later.",
+             "examples. Offline and ToS-clean for reviewers; the tenant-B variant "
+             "(CU North TellerWorks) is built and used in the cross-tenant demo.",
              "Public demo sites (saucedemo, demoqa): zero build cost but cannot "
              "produce session expiry or permission denials on demand, which guts the "
              "robustness demonstration; ToS and rate-limit caveats; no domain "
@@ -425,18 +448,23 @@ def sec4():
         "result, and optionally a screenshot. The model must respond with exactly one "
         "tool call from a closed set:"))
     story.extend(code(
-        "click(ref, intent, reasoning)          fill(ref, value|{{param}}, intent, reasoning)\n"
-        "select(ref, option, ...)               press(key, ...)\n"
-        "navigate(url, ...)                     extract(name, ref, type, ...)\n"
-        "declare_outcome(code, detectorHint)    mark_success(summary)\n"
-        "escalate(reason)                       wait_for(condition, timeoutMs)"))
+        "act(kind: navigate|click|fill|select|press, ref|url, value?, key?,\n"
+        "    risk: safe|risky, intent, reasoning)\n"
+        "extract(ref, outputName, type: string|number|money|date, sensitive?,\n"
+        "        extractPattern?, intent, reasoning)\n"
+        "declare_outcome(code, description, detectorText, reasoning)\n"
+        "finish(status: success|stuck, summary, reasoning)"))
     story.append(P(
-        "Stop conditions: mark_success, max steps (default 25), wall-clock timeout, "
-        "a repeated (action, state-hash) pair observed three times (loop detection), or "
-        "escalate. Every executed action plus the observation that followed it is "
-        "appended to the run trace that the Recorder distills. The model never executes "
-        "anything itself: every action passes through the same SurfaceDriver - and "
-        "therefore the same PolicyEngine - that replay uses."))
+        "Stop conditions (as built): finish(success), finish(stuck), turn budget "
+        "(policy default 40), wall-clock budget (5 minutes), the same action against "
+        "the same page state observed three times (loop detection), provider failure "
+        "after retries, or an operator abort at a risky-action approval. "
+        "declare_outcome is grounded: the engine rejects it unless the declared "
+        "detector text is actually visible on the current screen. Every executed "
+        "action plus the observation that followed it is appended to the run trace "
+        "that the Recorder distills. The model never executes anything itself: every "
+        "action passes through the same SurfaceDriver - and therefore the same "
+        "PolicyEngine - that replay uses."))
     story.append(H2("4.2 Where typed inputs, outputs, and outcomes come from"))
     story.extend(bull([
         "<b>Inputs:</b> declared at the CLI at discovery time (e.g. memberId=12345). "
@@ -446,11 +474,12 @@ def sec4():
         "Recorder captures the target descriptor and declared type into the outputs "
         "block.",
         "<b>Outcomes:</b> a happy-path run never sees \"member not found\", so outcomes "
-        "come from two honest sources: optional <b>probe runs</b> (the CLI accepts "
-        "exemplar bad inputs, e.g. memberId=99999; the agent runs until the outcome "
-        "state appears and records a detector for it) and <b>human review</b> of the "
-        "artifact JSON, which is designed to be hand-editable. No hallucinated "
-        "detectors: every detector is grounded in an observed state or a reviewer edit.",
+        "come from two honest sources: <b>probe runs</b> (re-run discovery with an "
+        "exemplar bad input, e.g. memberId=99999; the model calls declare_outcome and "
+        "the CLI merges the declared outcome into the existing artifact) and <b>human "
+        "review</b> of the artifact JSON, which is designed to be hand-editable. No "
+        "hallucinated detectors: declare_outcome is rejected unless its detector text "
+        "is visible on screen at the moment of declaration.",
     ]))
     story.append(PageBreak())
     return story

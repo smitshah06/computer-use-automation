@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "gen"))
 from doc import PlanDoc  # noqa: E402
 import sec_front, sec_mid, sec_back  # noqa: E402
 
-OUT = os.path.join(os.path.dirname(__file__), "..", "Implementation_Design_Plan.pdf")
+OUT = os.path.join(os.path.dirname(__file__), "Implementation_Design_Plan.pdf")
 
 
 def main():
