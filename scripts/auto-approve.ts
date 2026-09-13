@@ -7,10 +7,15 @@
 // It only touches type:"approval" interventions; assist escalations (a human
 // must fix the live session) are left for a real operator.
 //
-// Usage: tsx scripts/auto-approve.ts [count] [timeoutSeconds]
+// The console requires a shared-secret token. Set SCRIBE_CONSOLE_TOKEN (in the
+// environment or .env) so this script and the replay CLI use the SAME token —
+// without it the CLI generates a random per-run token this script cannot know.
+//
+// Usage: SCRIBE_CONSOLE_TOKEN=... tsx scripts/auto-approve.ts [count] [timeoutSeconds]
 //   count           approvals to grant before exiting (default 1)
 //   timeoutSeconds  give up after this long (default 240)
 
+import { existsSync, readFileSync } from "node:fs";
 import { loadPolicyConfig } from "../src/policy/engine";
 import type { InterventionRecord } from "../src/escalation/store";
 
@@ -18,7 +23,24 @@ const OPERATOR = "operator-jsmith";
 const count = Number(process.argv[2] ?? "1");
 const timeoutMs = Number(process.argv[3] ?? "240") * 1000;
 
+function loadDotEnv(): void {
+  if (!existsSync(".env")) return;
+  for (const line of readFileSync(".env", "utf8").split("\n")) {
+    const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line);
+    if (m && process.env[m[1]!] === undefined) process.env[m[1]!] = m[2]!;
+  }
+}
+
 async function main(): Promise<void> {
+  loadDotEnv();
+  const token = process.env.SCRIBE_CONSOLE_TOKEN;
+  if (!token) {
+    throw new Error(
+      "SCRIBE_CONSOLE_TOKEN is not set. Export it (or add it to .env) before starting the replay " +
+        "so the CLI's console and this script share one token.",
+    );
+  }
+  const AUTH = { "x-scribe-token": token };
   const config = loadPolicyConfig("policy.yaml");
   const consoleUrl = `http://127.0.0.1:${config.escalation.operatorPort}`;
   const deadline = Date.now() + timeoutMs;
@@ -34,8 +56,11 @@ async function main(): Promise<void> {
 
     let list: InterventionRecord[];
     try {
-      list = (await (await fetch(`${consoleUrl}/api/interventions`)).json()) as InterventionRecord[];
-    } catch {
+      const res = await fetch(`${consoleUrl}/api/interventions`, { headers: AUTH });
+      if (res.status === 401) throw new Error("console rejected the token — SCRIBE_CONSOLE_TOKEN mismatch");
+      list = (await res.json()) as InterventionRecord[];
+    } catch (e) {
+      if (e instanceof Error && e.message.includes("token")) throw e;
       continue; // console not up yet — the run has not reached its risky step
     }
     const iv = list.find((x) => x.status === "pending" && x.request.type === "approval" && !done.has(x.request.id));
@@ -45,7 +70,7 @@ async function main(): Promise<void> {
     console.log(`auto-approve: pending approval ${id} — ${iv.request.reason}`);
     const claim = await fetch(`${consoleUrl}/api/interventions/${encodeURIComponent(id)}/claim`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...AUTH },
       body: JSON.stringify({ operator: OPERATOR }),
     });
     if (!claim.ok) {
@@ -54,7 +79,7 @@ async function main(): Promise<void> {
     }
     const resolve = await fetch(`${consoleUrl}/api/interventions/${encodeURIComponent(id)}/resolve`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...AUTH },
       body: JSON.stringify({
         disposition: "approve_once",
         operator: OPERATOR,
