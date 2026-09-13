@@ -438,6 +438,7 @@ export class PlaywrightDriver implements SurfaceDriver {
   private nonceSeq = 0;
   private captureHandler?: (e: HumanActionEvent) => void;
   private navListener?: (f: Frame) => void;
+  private blockedOrigins = new Set<string>();
 
   constructor(
     private readonly policy: PolicyEngine,
@@ -453,6 +454,70 @@ export class PlaywrightDriver implements SurfaceDriver {
   async launch(): Promise<void> {
     this.browser = await chromium.launch({ headless: !this.opts.headed });
     this.context = await this.browser.newContext({ viewport: { width: 1280, height: 900 } });
+    // Network-layer backstop. Policy is primarily enforced in act(), but a page
+    // can initiate traffic on its own: JS/meta redirects, server 302 chains,
+    // subresource loads to third parties (<img src> exfiltration). Every request
+    // the context makes is checked against the same PolicyEngine origin
+    // allowlist — because the handler consults the engine at request time, it
+    // tightens automatically when an artifact policy is bound.
+    //
+    // Redirects need special care: Playwright never re-invokes routes for
+    // redirect-chain hops, whether the 3xx came from the server or from a
+    // fulfill (verified empirically). route.continue() would therefore let a
+    // same-origin request 302 straight off the allowlist unseen. So allowed
+    // requests are fetched here with redirects DISABLED and the response is
+    // replayed to the browser; a 3xx whose Location resolves off-allowlist is
+    // replaced with a blocking response before the browser can follow it.
+    // (Known gaps, logged by the response listener below: service-worker
+    // traffic bypasses context routes — the mock app registers none — and a
+    // multi-hop chain re-vetted by the browser is TOCTOU-racy in theory.)
+    this.blockedOrigins.clear();
+    await this.context.route("**/*", async (route) => {
+      const req = route.request();
+      const url = req.url();
+      if (!this.policy.originAllowed(url)) {
+        const isNav = req.isNavigationRequest();
+        this.logBlocked(url, { resourceType: req.resourceType(), navigation: isNav }, isNav);
+        await route.abort("blockedbyclient");
+        return;
+      }
+      let response;
+      try {
+        response = await route.fetch({ maxRedirects: 0 });
+      } catch {
+        await route.abort().catch(() => {}); // context tearing down mid-flight
+        return;
+      }
+      const status = response.status();
+      const location = response.headers()["location"];
+      if (status >= 300 && status < 400 && location !== undefined) {
+        let dest = "";
+        try {
+          dest = new URL(location, url).toString();
+        } catch {
+          /* unparseable Location: treated as off-allowlist below */
+        }
+        if (!this.policy.originAllowed(dest)) {
+          this.logBlocked(dest || location, { redirect: true, from: url.slice(0, 200), navigation: req.isNavigationRequest() }, true);
+          await route.fulfill({
+            status: 502,
+            contentType: "text/plain",
+            body: `scribe policy: redirect to off-allowlist origin blocked (${dest || location})`,
+          });
+          return;
+        }
+      }
+      await route.fulfill({ response });
+    });
+    // Belt over braces: if anything does land off-allowlist despite the route
+    // (multi-hop race, service worker), record it loudly. The run still fails
+    // closed — checkAction() refuses the next act() on a page whose current
+    // URL is not allowlisted.
+    this.context.on("response", (r) => {
+      if (!this.policy.originAllowed(r.url())) {
+        this.logger?.log("system", "net_offlist_response", { url: r.url().slice(0, 200), status: r.status() });
+      }
+    });
     // tsx/esbuild transpiles with keepNames, injecting __name(...) calls into
     // function source; Playwright serializes evaluate() callbacks from that
     // transpiled source, so the helper must also exist inside every document.
@@ -464,6 +529,21 @@ export class PlaywrightDriver implements SurfaceDriver {
     this.page = await this.context.newPage();
     this.page.setDefaultTimeout(this.opts.actTimeoutMs ?? 10_000);
     this.page.setDefaultNavigationTimeout(15_000);
+  }
+
+  // Navigations and blocked redirects are always logged; subresource noise is
+  // deduped per origin.
+  private logBlocked(urlOrDest: string, extra: Record<string, unknown>, always: boolean): void {
+    let origin: string;
+    try {
+      origin = new URL(urlOrDest).origin;
+    } catch {
+      origin = urlOrDest.slice(0, 80);
+    }
+    if (always || !this.blockedOrigins.has(origin)) {
+      this.blockedOrigins.add(origin);
+      this.logger?.log("system", "net_blocked", { origin, url: urlOrDest.slice(0, 200), ...extra });
+    }
   }
 
   async close(): Promise<void> {

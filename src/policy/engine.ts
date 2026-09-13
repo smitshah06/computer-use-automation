@@ -30,7 +30,10 @@ export class PolicyEngine {
     this.reviewStatus = reviewStatus;
   }
 
-  private originAllowed(url: string): boolean {
+  // Public because it backs two enforcement layers: checkAction() (the act()
+  // chokepoint) and the driver's network-layer backstop, which aborts any
+  // request the *page* initiates toward an origin outside the allowlist.
+  originAllowed(url: string): boolean {
     let origin: string;
     try {
       origin = new URL(url).origin;
