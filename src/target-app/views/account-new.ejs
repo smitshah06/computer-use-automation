@@ -1,17 +1,17 @@
 <%- include('partials/top', { title: 'Open Sub-Account', nav: true, notice: locals.notice }) %>
 <table width="100%" border="0" cellpadding="8" cellspacing="0"><tr><td>
   <font face="Tahoma" size="3"><b>Open Sub-Account</b></font><br>
-  <font face="Tahoma" size="2">Member <%= member.id %> &middot; <%= member.name %></font>
+  <font face="Tahoma" size="2"><%= t.s.custWord %> <%= member.id %> &middot; <%= member.name %></font>
   <br><br>
   <% if (error) { %>
-  <font face="Tahoma" size="2" color="#B00020" id="ctl00_NewAcct_lblErr"><%= error %></font><br><br>
+  <font face="Tahoma" size="2" color="#B00020" id="<%= t.id.newErr %>"><%= error %></font><br><br>
   <% } %>
-  <table border="0" cellpadding="6" cellspacing="0" bgcolor="#FFFFFF" style="border:1px solid #9AA7B8">
+  <table border="0" cellpadding="6" cellspacing="0" bgcolor="#FFFFFF" style="border:1px solid <%= t.c.grid %>">
     <form method="POST" action="/members/<%= member.id %>/accounts/new">
     <tr>
       <td><font face="Tahoma" size="2">Account Type:</font></td>
       <td>
-        <select id="ctl00_NewAcct_ddlType" name="type">
+        <select id="<%= t.id.newType %>" name="type">
           <option<%= form.type === 'Savings' ? ' selected' : '' %>>Savings</option>
           <option<%= form.type === 'Checking' ? ' selected' : '' %>>Checking</option>
           <option<%= form.type === 'Holiday Club' ? ' selected' : '' %>>Holiday Club</option>
@@ -20,15 +20,15 @@
     </tr>
     <tr>
       <td><font face="Tahoma" size="2">Nickname:</font></td>
-      <td><input type="text" id="ctl00_NewAcct_txtNick" name="nick" size="20" value="<%= form.nick %>"></td>
+      <td><input type="text" id="<%= t.id.newNick %>" name="nick" size="20" value="<%= form.nick %>"></td>
     </tr>
     <tr>
       <td><font face="Tahoma" size="2">Initial Deposit:</font></td>
-      <td><input type="text" id="ctl00_NewAcct_txtDep" name="dep" size="10" value="<%= form.dep %>"></td>
+      <td><input type="text" id="<%= t.id.newDep %>" name="dep" size="10" value="<%= form.dep %>"></td>
     </tr>
     <tr>
       <td>&nbsp;</td>
-      <td><input type="submit" id="ctl00_NewAcct_btnCreate" value="Create Account"></td>
+      <td><input type="submit" id="<%= t.id.newCreate %>" value="Create Account"></td>
     </tr>
     </form>
   </table>

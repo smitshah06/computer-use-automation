@@ -12,6 +12,7 @@
   },
   "scripts": {
     "target": "tsx src/target-app/server.ts",
+    "target:north": "TENANT=cu-north PORT=4650 tsx src/target-app/server.ts",
     "discover": "tsx src/cli/index.ts discover",
     "replay": "tsx src/cli/index.ts replay",
     "approve": "tsx src/cli/index.ts approve",

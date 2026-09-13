@@ -1,37 +1,37 @@
-<%- include('partials/top', { title: 'Member Search', nav: true, notice: locals.notice }) %>
+<%- include('partials/top', { title: t.s.searchTitle, nav: true, notice: locals.notice }) %>
 <table width="100%" border="0" cellpadding="8" cellspacing="0"><tr><td>
-  <font face="Tahoma" size="3"><b>Member Search</b></font>
+  <font face="Tahoma" size="3"><b><%= t.s.searchTitle %></b></font>
   <br><br>
-  <table border="0" cellpadding="6" cellspacing="0" bgcolor="#FFFFFF" style="border:1px solid #9AA7B8">
+  <table border="0" cellpadding="6" cellspacing="0" bgcolor="#FFFFFF" style="border:1px solid <%= t.c.grid %>">
     <form method="GET" action="/members">
     <tr>
       <%# deliberately no <label> element here: legacy screens often label via bare table cells %>
-      <td><font face="Tahoma" size="2">Member Number:</font></td>
-      <td><input type="text" id="ctl00_MbrSrch_txtNum" name="q" size="12" maxlength="5"></td>
-      <td><input type="submit" id="ctl00_MbrSrch_btnFind" value="Search"></td>
+      <td><font face="Tahoma" size="2"><%= t.s.numberLabel %></font></td>
+      <td><input type="text" id="<%= t.id.srchNum %>" name="q" size="12" maxlength="5"></td>
+      <td><input type="submit" id="<%= t.id.srchFind %>" value="<%= t.s.findBtn %>"></td>
     </tr>
     </form>
   </table>
   <br>
   <% if (q !== null) { %>
     <% if (results.length > 0) { %>
-      <font face="Tahoma" size="2"><b>Member Results</b></font>
-      <table id="ctl00_MbrGrd" border="0" cellpadding="5" cellspacing="1" bgcolor="#9AA7B8" width="55%">
-        <tr bgcolor="#D6DEEA">
-          <td><font face="Tahoma" size="2"><b>Member No</b></font></td>
+      <font face="Tahoma" size="2"><b><%= t.s.resultsTitle %></b></font>
+      <table id="<%= t.id.mbrGrid %>" border="0" cellpadding="5" cellspacing="1" bgcolor="<%= t.c.grid %>" width="55%">
+        <tr bgcolor="<%= t.c.band %>">
+          <td><font face="Tahoma" size="2"><b><%= t.s.noLabel %></b></font></td>
           <td><font face="Tahoma" size="2"><b>Name</b></font></td>
           <td><font face="Tahoma" size="2"><b>Status</b></font></td>
         </tr>
         <% results.forEach(function(m, i) { %>
         <tr bgcolor="#FFFFFF">
-          <td id="ctl00_MbrGrd_r<%= i %>_c0"><font face="Tahoma" size="2"><%= m.id %></font></td>
-          <td id="ctl00_MbrGrd_r<%= i %>_c1"><font face="Tahoma" size="2"><a href="/members/<%= m.id %>"><%= m.name %></a></font></td>
-          <td id="ctl00_MbrGrd_r<%= i %>_c2"><font face="Tahoma" size="2"><%= m.status %></font></td>
+          <td id="<%= t.id.mbrGrid %>_r<%= i %>_c0"><font face="Tahoma" size="2"><%= m.id %></font></td>
+          <td id="<%= t.id.mbrGrid %>_r<%= i %>_c1"><font face="Tahoma" size="2"><a href="/members/<%= m.id %>"><%= m.name %></a></font></td>
+          <td id="<%= t.id.mbrGrid %>_r<%= i %>_c2"><font face="Tahoma" size="2"><%= m.status %></font></td>
         </tr>
         <% }) %>
       </table>
     <% } else { %>
-      <font face="Tahoma" size="2" color="#5A6572" id="ctl00_MbrSrch_lblNone">No records found.</font>
+      <font face="Tahoma" size="2" color="#5A6572" id="<%= t.id.srchNone %>"><%= t.s.noneFound %></font>
     <% } %>
   <% } %>
 </td></tr></table>

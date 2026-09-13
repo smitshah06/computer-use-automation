@@ -2,20 +2,20 @@
 <table width="100%" border="0" cellpadding="8" cellspacing="0"><tr><td>
   <font face="Tahoma" size="3"><b>Sub-Account Created</b></font>
   <br><br>
-  <font face="Tahoma" size="2">Confirmation #: <b id="ctl00_Conf_lblNum"><%= confirmation %></b></font>
+  <font face="Tahoma" size="2">Confirmation #: <b id="<%= t.id.confNum %>"><%= confirmation %></b></font>
   <br><br>
-  <table border="0" cellpadding="5" cellspacing="1" bgcolor="#9AA7B8">
-    <tr bgcolor="#D6DEEA"><td colspan="2"><font face="Tahoma" size="2"><b>New Account</b></font></td></tr>
-    <tr bgcolor="#FFFFFF"><td><font face="Tahoma" size="2">Member</font></td>
+  <table border="0" cellpadding="5" cellspacing="1" bgcolor="<%= t.c.grid %>">
+    <tr bgcolor="<%= t.c.band %>"><td colspan="2"><font face="Tahoma" size="2"><b>New Account</b></font></td></tr>
+    <tr bgcolor="#FFFFFF"><td><font face="Tahoma" size="2"><%= t.s.custWord %></font></td>
       <td><font face="Tahoma" size="2"><%= member.id %> &middot; <%= member.name %></font></td></tr>
     <tr bgcolor="#FFFFFF"><td><font face="Tahoma" size="2">Type</font></td>
-      <td id="ctl00_Conf_lblType"><font face="Tahoma" size="2"><%= account.type %></font></td></tr>
+      <td id="<%= t.id.confType %>"><font face="Tahoma" size="2"><%= account.type %></font></td></tr>
     <tr bgcolor="#FFFFFF"><td><font face="Tahoma" size="2">Account No</font></td>
-      <td id="ctl00_Conf_lblAcct"><font face="Tahoma" size="2"><%= account.number %></font></td></tr>
+      <td id="<%= t.id.confAcct %>"><font face="Tahoma" size="2"><%= account.number %></font></td></tr>
     <tr bgcolor="#FFFFFF"><td><font face="Tahoma" size="2">Opening Balance</font></td>
-      <td id="ctl00_Conf_lblBal"><font face="Tahoma" size="2"><%= account.balance %></font></td></tr>
+      <td id="<%= t.id.confBal %>"><font face="Tahoma" size="2"><%= account.balance %></font></td></tr>
   </table>
   <br>
-  <font face="Tahoma" size="2"><a href="/members/<%= member.id %>">Back to Member Profile</a></font>
+  <font face="Tahoma" size="2"><a href="/members/<%= member.id %>">Back to <%= t.s.profileTitle %></a></font>
 </td></tr></table>
 <%- include('partials/bottom') %>

@@ -5,5 +5,6 @@ export * from "./artifact";
 export * from "./result";
 export * from "./intervention";
 export * from "./policy-config";
+export * from "./tenant";
 export * from "./template";
 export * from "./util";

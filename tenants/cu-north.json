@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "1.0",
+  "tenantId": "cu-north",
+  "appId": "cu-backoffice",
+  "description": "CU North runs the same teller product re-branded as 'CU North TellerWorks': green skin, tw_* auto-generated ids, and member->customer vocabulary. Routes, forms, and business behavior are identical, so the recorded artifacts replay here through this overlay alone - no re-recording.",
+  "requiredOrigins": ["http://localhost:4650"],
+  "appFingerprint": {
+    "titlePattern": "CU North TellerWorks",
+    "markers": ["Operator Log On"]
+  },
+  "vocabulary": {
+    "Teller Sign-In": "Operator Log On",
+    "Teller ID": "Operator ID",
+    "Passcode": "PIN",
+    "Sign In": "Log On",
+    "Teller Desk": "Operator Desk",
+    "Member Search": "Customer Search",
+    "Member Number": "Customer Number",
+    "Search": "Find",
+    "Member Results": "Customer Results",
+    "Member Profile": "Customer Profile",
+    "Member No": "Customer No",
+    "Member Since": "Customer Since",
+    "No records found": "No matching customers on file",
+    "No records found.": "No matching customers on file."
+  }
+}

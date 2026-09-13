@@ -2,6 +2,12 @@
 // markup: table layout, font tags, auto-generated ctl00_* ids, no test ids,
 // labels present on some screens and absent on others. Fault injection makes
 // every runtime state in the design plan reproducible on demand.
+//
+// The app is theme-parameterized to simulate the SAME vendor product deployed
+// at two credit unions: "cu-backoffice" (Community One, the recorded tenant)
+// and "cu-north" (CU North: different branding, colors, label vocabulary, and
+// auto-generated ids — identical routes, forms, and business behavior). This
+// is the multi-tenant target a TenantBinding overlay is demonstrated against.
 import express from "express";
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -23,7 +29,91 @@ interface Seed {
   members: Member[];
 }
 
-export function createTargetApp() {
+// --- tenant themes -----------------------------------------------------------
+// Everything that differs between the two deployments lives here: brand,
+// palette, auto-generated element ids, and label vocabulary. Strings that a
+// recorded artifact targets and that do NOT differ per tenant (e.g. "System
+// Notice", "OK", "Accounts", the sub-account form labels, seeded data) are
+// deliberately kept in the views, not in the theme.
+export type TenantId = "cu-backoffice" | "cu-north";
+
+interface Theme {
+  brand: string;
+  tagline: string;
+  footerOrg: string;
+  branch: string;
+  c: { page: string; header: string; taglineFg: string; band: string; grid: string };
+  id: {
+    navDesk: string; navSearch: string; navReports: string; navOut: string;
+    noticePnl: string; noticeOk: string;
+    loginUser: string; loginPass: string; loginGo: string;
+    srchNum: string; srchFind: string; srchNone: string; mbrGrid: string;
+    detNum: string; detName: string; detStatus: string; detJoined: string; detNew: string; acctGrid: string;
+    newType: string; newNick: string; newDep: string; newCreate: string; newErr: string;
+    confNum: string; confType: string; confAcct: string; confBal: string;
+  };
+  s: {
+    signInTitle: string; userLabel: string; passLabel: string; signInBtn: string; badCreds: string;
+    deskTitle: string; navDesk: string; navSearch: string; navOut: string;
+    searchTitle: string; numberLabel: string; findBtn: string; resultsTitle: string;
+    noLabel: string; noneFound: string;
+    profileTitle: string; sinceLabel: string; custWord: string;
+  };
+}
+
+export const THEMES: Record<TenantId, Theme> = {
+  "cu-backoffice": {
+    brand: "CU BackOffice",
+    tagline: "Core Teller System v3.8.14",
+    footerOrg: "Community One Credit Union",
+    branch: "Branch 014 (Main St)",
+    c: { page: "#EDEFF2", header: "#16325C", taglineFg: "#B9C6D8", band: "#D6DEEA", grid: "#9AA7B8" },
+    id: {
+      navDesk: "ctl00_Nav_lnkDesk", navSearch: "ctl00_Nav_lnkSearch", navReports: "ctl00_Nav_lnkReports", navOut: "ctl00_Nav_lnkOut",
+      noticePnl: "ctl00_Notice_pnl", noticeOk: "ctl00_Notice_btnOk",
+      loginUser: "ctl00_LoginCtl_txtUser", loginPass: "ctl00_LoginCtl_txtPass", loginGo: "ctl00_LoginCtl_btnGo",
+      srchNum: "ctl00_MbrSrch_txtNum", srchFind: "ctl00_MbrSrch_btnFind", srchNone: "ctl00_MbrSrch_lblNone", mbrGrid: "ctl00_MbrGrd",
+      detNum: "ctl00_Det_lblNum", detName: "ctl00_Det_lblName", detStatus: "ctl00_Det_lblStatus", detJoined: "ctl00_Det_lblJoined", detNew: "ctl00_Det_lnkNew", acctGrid: "ctl00_AcctGrd",
+      newType: "ctl00_NewAcct_ddlType", newNick: "ctl00_NewAcct_txtNick", newDep: "ctl00_NewAcct_txtDep", newCreate: "ctl00_NewAcct_btnCreate", newErr: "ctl00_NewAcct_lblErr",
+      confNum: "ctl00_Conf_lblNum", confType: "ctl00_Conf_lblType", confAcct: "ctl00_Conf_lblAcct", confBal: "ctl00_Conf_lblBal",
+    },
+    s: {
+      signInTitle: "Teller Sign-In", userLabel: "Teller ID", passLabel: "Passcode", signInBtn: "Sign In",
+      badCreds: "Invalid teller credentials.",
+      deskTitle: "Teller Desk", navDesk: "Teller Desk", navSearch: "Member Search", navOut: "Sign Out",
+      searchTitle: "Member Search", numberLabel: "Member Number:", findBtn: "Search", resultsTitle: "Member Results",
+      noLabel: "Member No", noneFound: "No records found.",
+      profileTitle: "Member Profile", sinceLabel: "Member Since", custWord: "Member",
+    },
+  },
+  "cu-north": {
+    brand: "CU North TellerWorks",
+    tagline: "Unified Branch Console v11.2",
+    footerOrg: "CU North Federal Credit Union",
+    branch: "Branch 03 (Lakeview)",
+    c: { page: "#F1F4EF", header: "#1E4D2B", taglineFg: "#BFD3C4", band: "#DDE8DC", grid: "#94A895" },
+    id: {
+      navDesk: "tw_Nav_lnkDesk", navSearch: "tw_Nav_lnkFind", navReports: "tw_Nav_lnkRpt", navOut: "tw_Nav_lnkOut",
+      noticePnl: "tw_Notice_pnl", noticeOk: "tw_Notice_btnOk",
+      loginUser: "tw_LogOn_fldUser", loginPass: "tw_LogOn_fldPin", loginGo: "tw_LogOn_btnGo",
+      srchNum: "tw_CustFind_fldNo", srchFind: "tw_CustFind_btnGo", srchNone: "tw_CustFind_lblNone", mbrGrid: "tw_CustGrid",
+      detNum: "tw_Prof_lblNo", detName: "tw_Prof_lblName", detStatus: "tw_Prof_lblStatus", detJoined: "tw_Prof_lblSince", detNew: "tw_Prof_lnkNew", acctGrid: "tw_AcctGrid",
+      newType: "tw_NewSub_ddlType", newNick: "tw_NewSub_txtNick", newDep: "tw_NewSub_txtDep", newCreate: "tw_NewSub_btnCreate", newErr: "tw_NewSub_lblErr",
+      confNum: "tw_Conf_lblRef", confType: "tw_Conf_lblType", confAcct: "tw_Conf_lblAcct", confBal: "tw_Conf_lblBal",
+    },
+    s: {
+      signInTitle: "Operator Log On", userLabel: "Operator ID", passLabel: "PIN", signInBtn: "Log On",
+      badCreds: "Invalid operator credentials.",
+      deskTitle: "Operator Desk", navDesk: "My Desk", navSearch: "Customer Search", navOut: "Log Off",
+      searchTitle: "Customer Search", numberLabel: "Customer Number:", findBtn: "Find", resultsTitle: "Customer Results",
+      noLabel: "Customer No", noneFound: "No matching customers on file.",
+      profileTitle: "Customer Profile", sinceLabel: "Customer Since", custWord: "Customer",
+    },
+  },
+};
+
+export function createTargetApp(tenant: TenantId = "cu-backoffice") {
+  const t = THEMES[tenant];
   const seed: Seed = JSON.parse(readFileSync(join(HERE, "seed.json"), "utf8"));
   const sessions = new Map<string, { user: string }>();
   const armed = new Set<Fault>();
@@ -33,6 +123,7 @@ export function createTargetApp() {
   app.set("view engine", "ejs");
   app.set("views", join(HERE, "views"));
   app.use(express.urlencoded({ extended: false }));
+  app.locals.t = t; // theme is available to every view and partial
 
   // --- fault-injection control (ops tooling, not part of the business UI) ---
   app.get("/__faults", (req, res) => {
@@ -95,7 +186,7 @@ export function createTargetApp() {
     const { user, pass } = req.body as { user?: string; pass?: string };
     const teller = seed.tellers.find((t) => t.username === user && t.password === pass);
     if (!teller) {
-      res.status(401).render("login", { expired: false, error: "Invalid teller credentials." });
+      res.status(401).render("login", { expired: false, error: t.s.badCreds });
       return;
     }
     const token = randomBytes(16).toString("hex");
@@ -175,14 +266,19 @@ export function createTargetApp() {
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
 if (isMain) {
   const port = Number(process.env.PORT ?? 4600);
+  const tenant = (process.env.TENANT ?? "cu-backoffice") as TenantId;
+  if (!(tenant in THEMES)) {
+    console.error(`unknown TENANT "${tenant}" — known tenants: ${Object.keys(THEMES).join(", ")}`);
+    process.exit(1);
+  }
   // Loopback only: the mock back-office has fault-injection endpoints and
   // demo credentials — it must not be reachable from the network. Both
   // loopback families are bound so "localhost" works whichever way the
   // client's resolver orders ::1 / 127.0.0.1.
-  const app = createTargetApp();
+  const app = createTargetApp(tenant);
   app.listen(port, "127.0.0.1", () => {
-    console.log(`CU BackOffice (mock) listening on http://localhost:${port}`);
-    console.log(`Teller sign-in: teller1 / Demo!Pass1`);
+    console.log(`${THEMES[tenant].brand} (mock, tenant ${tenant}) listening on http://localhost:${port}`);
+    console.log(`Sign-in: teller1 / Demo!Pass1`);
     console.log(`Fault injection: GET /__faults?arm=session-expiry|interstitial|slow|error500  (&clear=1)`);
   });
   app.listen(port, "::1").on("error", () => {

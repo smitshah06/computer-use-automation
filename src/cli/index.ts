@@ -3,11 +3,14 @@ import { join } from "node:path";
 import { Command } from "commander";
 import {
   CapabilityArtifactSchema,
+  TenantBindingSchema,
+  applyTenantBinding,
   loadSecretsFromEnv,
   type CapabilityArtifact,
   type Outcome,
   type PolicyConfig,
   type RunResult,
+  type TenantBinding,
 } from "../core";
 import { PolicyEngine, loadPolicyConfig } from "../policy/engine";
 import { PlaywrightDriver } from "../surface";
@@ -20,6 +23,7 @@ import { OperatorConsole, OperatorGateway, newConsoleToken } from "../escalation
 import { buildHealthReport, collectRunResults, renderHealthReport } from "../evidence/locator-health";
 
 const CAPS_DIR = "capabilities";
+const TENANTS_DIR = "tenants";
 const EVIDENCE_DIR = "evidence";
 
 // Minimal .env support so API keys and SCRIBE_SECRET_* values never need to
@@ -70,6 +74,12 @@ function loadArtifact(idOrPath: string): { artifact: CapabilityArtifact; path: s
 function saveArtifact(path: string, artifact: unknown): void {
   mkdirSync(CAPS_DIR, { recursive: true });
   writeFileSync(path, JSON.stringify(artifact, null, 2) + "\n");
+}
+
+function loadTenantBinding(idOrPath: string): { binding: TenantBinding; path: string } {
+  const path = idOrPath.endsWith(".json") ? idOrPath : join(TENANTS_DIR, `${idOrPath}.json`);
+  if (!existsSync(path)) throw new Error(`tenant binding not found: ${path}`);
+  return { binding: TenantBindingSchema.parse(JSON.parse(readFileSync(path, "utf8"))), path };
 }
 
 // Same-process operator surface: the intervention promise parks inside this
@@ -236,12 +246,22 @@ program
   .option("--param <k=v>", "capability input (repeatable)", collect, [])
   .option("--env <k=v>", "environment binding (repeatable; APP_BASE_URL defaults to the recorded origin)", collect, [])
   .option("--inject <fault>", "arm a target-app fault first: interstitial | slow | session-expiry | error500")
+  .option("--tenant <idOrPath>", "apply a tenant binding (in tenants/) over the artifact before replay")
   .option("--headed", "show the browser window (required for a human to take over on escalation)", false)
   .option("--no-console", "do not start the operator console (escalations cannot be resolved)")
   .option("--policy <path>", "policy config", "policy.yaml")
   .action(async (o) => {
     const config = loadPolicyConfig(o.policy);
-    const { artifact, path } = loadArtifact(o.capability);
+    const loaded = loadArtifact(o.capability);
+    const path = loaded.path;
+    let artifact = loaded.artifact;
+    if (o.tenant) {
+      const { binding, path: tenantPath } = loadTenantBinding(o.tenant);
+      artifact = applyTenantBinding(artifact, binding);
+      console.log(
+        `tenant binding applied: ${binding.tenantId} from ${tenantPath} — target ${artifact.policy.requiredOrigins.join(", ")}`,
+      );
+    }
     const params = parseKv(o.param, "--param");
     const env = parseKv(o.env, "--env");
     if (!env.APP_BASE_URL) env.APP_BASE_URL = new URL(artifact.policy.requiredOrigins[0]!).origin;

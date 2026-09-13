@@ -2,7 +2,8 @@
 # refused at the SurfaceDriver chokepoint, regardless of what the model asks for.
 allowlist:
   origins:
-    - http://localhost:4600      # mock CU back-office (the only permitted app)
+    - http://localhost:4600      # mock CU back-office — tenant A (Community One)
+    - http://localhost:4650      # same product re-skinned — tenant B (CU North, via tenants/cu-north.json)
 
 actionKinds: [navigate, click, fill, select, press, extract]
 
