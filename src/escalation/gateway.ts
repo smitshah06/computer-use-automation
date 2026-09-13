@@ -44,9 +44,18 @@ export class OperatorGateway implements EscalationGateway {
   claim(id: string, operator: string): InterventionRecord {
     const rec = this.store.claim(id, operator);
     this.controller.transition("human", operator, `claimed intervention ${id}`);
-    void this.driver.startHumanCapture((e: HumanActionEvent) => {
-      this.logger.log("human", "human_action", { ...e });
-    });
+    this.driver
+      .startHumanCapture((e: HumanActionEvent) => {
+        this.logger.log("human", "human_action", { ...e });
+      })
+      .catch((err: unknown) => {
+        // Capture is evidence, not control flow: the handoff still stands,
+        // but the gap in the audit trail must itself be on the record.
+        this.logger.log("system", "human_capture_failed", {
+          interventionId: id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
     return rec;
   }
 

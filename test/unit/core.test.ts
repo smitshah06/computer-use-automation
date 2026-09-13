@@ -5,6 +5,7 @@ import {
   RunOutcomeSchema,
   parameterizeValue,
   resolveTemplate,
+  resolveTemplateInRegex,
   loadSecretsFromEnv,
   findUnresolved,
 } from "../../src/core";
@@ -128,5 +129,13 @@ describe("templating and parameterization", () => {
 
   it("flags malformed template refs", () => {
     expect(findUnresolved("{{inputs.ok}} and {{bogus ref}}", )).toEqual(["{{bogus ref}}"]);
+  });
+
+  it("regex-escapes substituted values in regex contexts", () => {
+    const rctx = { inputs: { q: "a.b(c)" }, secrets: {}, env: {} };
+    // author-written regex around the ref stays live; the data is neutralized
+    expect(resolveTemplateInRegex("^/find/{{inputs.q}}$", rctx)).toBe("^/find/a\\.b\\(c\\)$");
+    expect(new RegExp(resolveTemplateInRegex("/m/{{inputs.q}}", rctx)).test("/m/a.b(c)")).toBe(true);
+    expect(new RegExp(resolveTemplateInRegex("/m/{{inputs.q}}", rctx)).test("/m/aXb(c)")).toBe(false);
   });
 });

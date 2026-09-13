@@ -123,7 +123,7 @@ program
   .option("--input <k=v>", "task input (repeatable)", collect, [])
   .option("--sensitive-input <name>", "mark an input as sensitive (repeatable)", collect, [])
   .option("--env <k=v>", "environment binding, e.g. APP_BASE_URL=... (repeatable; defaults to the entry origin)", collect, [])
-  .option("--provider <name>", "llm provider: anthropic | openai", "anthropic")
+  .option("--provider <name>", "llm provider: anthropic | openai", process.env.SCRIBE_PROVIDER ?? "anthropic")
   .option("--model <model>", "model override")
   .option("--max-turns <n>", "turn budget override")
   .option("--headed", "show the browser window", false)

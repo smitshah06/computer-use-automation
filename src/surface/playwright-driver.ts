@@ -412,7 +412,12 @@ function installHumanCaptureFn(): void {
     (e) => {
       const t = e.target as HTMLInputElement | null;
       if (!t) return;
-      const value = t.type === "password" ? "***" : t.value;
+      // Same sensitivity contract as screenshot masking: password inputs and
+      // anything the app marks data-scribe-sensitive are masked at the source,
+      // before the value ever crosses into the Node side of the capture.
+      const sensitive =
+        t.type === "password" || t.closest('[data-scribe-sensitive="1"]') !== null;
+      const value = sensitive ? "***" : t.value;
       send({ kind: "input", url: location.href, ...describe(t), value });
     },
     true,

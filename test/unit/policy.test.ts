@@ -79,4 +79,12 @@ describe("redactor", () => {
     r.register("ok");
     expect(r.mask("ok this stays")).toBe("ok this stays");
   });
+
+  it("masks longest values first so a substring secret cannot leak the tail of a longer one", () => {
+    const r = new Redactor("***");
+    r.register("teller1"); // registered first, prefix of the password
+    r.register("teller1-Xy9!secret");
+    expect(r.mask("pw=teller1-Xy9!secret user=teller1")).toBe("pw=*** user=***");
+    expect(r.mask("pw=teller1-Xy9!secret")).not.toContain("Xy9!secret");
+  });
 });

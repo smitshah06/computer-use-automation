@@ -184,24 +184,66 @@ export class ReplayEngine {
     return undefined;
   }
 
+  // The success checkpoint gets the same deviation precedence as any step:
+  // declared outcome > declared recovery (bounded by maxAttempts, re-verify
+  // after each) > assist escalation if a gateway is wired > hard failure.
   private async verifySuccess(): Promise<RunOutcome> {
     const cond = materializeCondition(this.artifact.successCheckpoint, this.ctx);
-    if (!(await this.driver.waitForCondition(cond, this.checkpointWaitMs))) {
-      const lastId = this.artifact.steps[this.artifact.steps.length - 1]!.id;
-      const c = await this.classifier.classify(lastId);
-      if (c.type === "outcome") return this.businessOutcome(lastId, c.outcome);
+    const expected = describeCondition(this.artifact.successCheckpoint);
+    const lastStep = this.artifact.steps[this.artifact.steps.length - 1]!;
+    const recoveriesApplied: string[] = [];
+    for (;;) {
+      if (await this.driver.waitForCondition(cond, this.checkpointWaitMs)) {
+        this.logger.log("replay", "success_checkpoint_ok", {});
+        return { status: "success", outputs: this.outputs };
+      }
+      if (Date.now() > this.deadline) {
+        return {
+          status: "hard_failure",
+          error: await this.captureError("success", undefined, expected, "run timeout exceeded"),
+        };
+      }
+      const c = await this.classifier.classify(lastStep.id);
+      if (c.type === "outcome") return this.businessOutcome(lastStep.id, c.outcome);
+      if (c.type === "recovery") {
+        if (!(await this.applyRecovery(c.recovery, lastStep, recoveriesApplied))) {
+          return {
+            status: "hard_failure",
+            error: await this.captureError("success", undefined, `recovery ${c.recovery.id} to succeed`, "recovery action failed"),
+          };
+        }
+        continue; // re-verify the checkpoint after the recovery
+      }
+      if (this.opts.gateway) {
+        const summary = await this.escalate("assist", `success checkpoint — expected: ${expected}`);
+        if (summary.disposition === "completed_step") {
+          if (await this.driver.waitForCondition(cond, this.checkpointWaitMs)) {
+            this.logger.log("operator", "step_completed_by_human", { stepId: "success" });
+            this.logger.log("replay", "success_checkpoint_ok", {});
+            return { status: "success", outputs: this.outputs };
+          }
+          return {
+            status: "hard_failure",
+            error: await this.captureError(
+              "success",
+              undefined,
+              expected,
+              "operator marked the run complete but the success checkpoint still fails",
+            ),
+          };
+        }
+        if (summary.disposition === "fixed_environment") continue;
+        this.aborted = true;
+        return {
+          status: "hard_failure",
+          error: await this.captureError("success", undefined, expected, `operator disposition: ${summary.disposition}`),
+        };
+      }
       return {
         status: "hard_failure",
-        error: await this.captureError(
-          "success",
-          undefined,
-          describeCondition(this.artifact.successCheckpoint),
-          "success checkpoint not satisfied after all steps",
-        ),
+        error: await this.captureError("success", undefined, expected, "success checkpoint not satisfied after all steps"),
       };
     }
-    this.logger.log("replay", "success_checkpoint_ok", {});
-    return { status: "success", outputs: this.outputs };
   }
 
   private async runStep(step: Step): Promise<RunOutcome | undefined> {
@@ -278,7 +320,10 @@ export class ReplayEngine {
               recoveriesApplied,
               checkpoint: cond,
             });
-            if (dev === "retry") continue;
+            if (dev === "retry" || dev === "retry_reset") {
+              if (dev === "retry_reset") attempts = 0;
+              continue;
+            }
             if (dev === "done") return done();
             return dev;
           }
@@ -292,6 +337,14 @@ export class ReplayEngine {
         return this.hardFailure(step, "action permitted by policy", `denied by policy: ${res.denied}`);
       }
       if (res.needsApproval) {
+        if (!this.opts.gateway) {
+          return this.hardFailure(
+            step,
+            "approval to proceed with a risky action",
+            `${res.needsApproval} — no escalation gateway is wired ` +
+              "(re-run with the operator console enabled, or approve the capability for unattended replay)",
+          );
+        }
         const summary = await this.escalate("approval", res.needsApproval, step);
         if (summary.disposition === "approve_once") {
           approved = true;
@@ -315,21 +368,25 @@ export class ReplayEngine {
         recoveriesApplied,
         checkpoint: step.checkpoint ? materializeCondition(step.checkpoint, this.ctx) : undefined,
       });
-      if (dev === "retry") continue;
+      if (dev === "retry" || dev === "retry_reset") {
+        if (dev === "retry_reset") attempts = 0;
+        continue;
+      }
       if (dev === "done") return done();
       return dev;
     }
   }
 
   // Shared deviation pipeline for both act failures and checkpoint failures.
-  // Returns "retry" (re-attempt the step), "done" (recovery satisfied the
-  // step's postcondition), a terminal RunOutcome, or never undefined.
+  // Returns "retry" (re-attempt the step), "retry_reset" (operator fixed the
+  // environment — re-attempt with a fresh attempt budget), "done" (recovery
+  // satisfied the step's postcondition), or a terminal RunOutcome.
   private async deviate(
     step: Step,
     expected: string,
     observed: string,
     state: { attempts: number; recoveriesApplied: string[]; checkpoint?: Condition },
-  ): Promise<"retry" | "done" | RunOutcome> {
+  ): Promise<"retry" | "retry_reset" | "done" | RunOutcome> {
     const c = await this.classifier.classify(step.id);
     if (c.type === "outcome") return this.businessOutcome(step.id, c.outcome);
 
@@ -365,8 +422,7 @@ export class ReplayEngine {
         return this.hardFailure(step, expected, "operator marked the step complete but its checkpoint still fails");
       }
       if (summary.disposition === "fixed_environment") {
-        state.attempts = 0;
-        return "retry";
+        return "retry_reset";
       }
       this.aborted = true;
       return this.hardFailure(step, expected, `operator disposition: ${summary.disposition}`);

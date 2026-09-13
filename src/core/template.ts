@@ -21,6 +21,25 @@ export function resolveTemplate(text: string, ctx: TemplateContext): string {
   });
 }
 
+// Resolution variant for strings that will be compiled as regular expressions
+// (urlMatches, valueMatches). The surrounding pattern is author-written regex;
+// the substituted runtime values are data — escape them so an input like
+// "12.5" or "(test)" can neither break compilation nor over/under-match.
+export function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export function resolveTemplateInRegex(text: string, ctx: TemplateContext): string {
+  return text.replace(REF_RE, (_m, scope: string, name: string) => {
+    const table = ctx[scope as keyof TemplateContext];
+    const v = table[name];
+    if (v === undefined) {
+      throw new Error(`unresolved template reference {{${scope}.${name}}}`);
+    }
+    return escapeRegExp(v);
+  });
+}
+
 export function findUnresolved(text: string): string[] {
   const known = new Set<string>();
   for (const m of text.matchAll(REF_RE)) known.add(m[0]);

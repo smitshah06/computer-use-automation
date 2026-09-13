@@ -47,9 +47,14 @@ export class OperatorConsole {
       if (typeof disposition !== "string" || !RESOLVABLE.has(disposition)) {
         return res.status(400).json({ error: `disposition must be one of: ${[...RESOLVABLE].join(", ")}` });
       }
+      // Dispositions are accountability records: an anonymous hand-back would
+      // leave a hole in the chain of custody.
+      if (typeof operator !== "string" || !operator.trim()) {
+        return res.status(400).json({ error: "operator name required" });
+      }
       const resolution: InterventionResolution = {
         disposition: disposition as InterventionResolution["disposition"],
-        operator: typeof operator === "string" && operator.trim() ? operator.trim() : undefined,
+        operator: operator.trim(),
         note: typeof note === "string" && note.trim() ? note.trim() : undefined,
       };
       try {
@@ -122,10 +127,20 @@ const DISPOSITIONS = {
   assist: ["completed_step", "fixed_environment", "abort"],
   approval: ["approve_once", "deny", "abort"],
 };
-function esc(s) { const d = document.createElement("span"); d.textContent = s == null ? "" : String(s); return d.innerHTML; }
+// Untrusted values (operator names, reasons, URLs) are entity-escaped for HTML
+// contexts and NEVER interpolated into JavaScript: buttons carry data-* ids
+// and a delegated listener reads them back via getAttribute.
+function esc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+let LATEST = {};
 async function refresh() {
   const res = await fetch("/api/interventions");
   const items = await res.json();
+  LATEST = {};
+  items.forEach(function (it) { LATEST[it.request.id] = it; });
   const el = document.getElementById("list");
   if (!items.length) { el.innerHTML = '<p class="empty">No interventions yet.</p>'; return; }
   el.innerHTML = items.map(function (it) {
@@ -133,40 +148,49 @@ async function refresh() {
     const opts = (DISPOSITIONS[r.type] || []).map(function (d) { return '<option>' + d + '</option>'; }).join("");
     let actions = "";
     if (it.status === "pending") {
-      actions = '<input id="op_' + r.id + '" placeholder="your name">' +
-        '<button onclick="claim(\\'' + r.id + '\\')">Claim &amp; take control</button>';
+      actions = '<input id="op_' + esc(r.id) + '" placeholder="your name">' +
+        '<button data-act="claim" data-id="' + esc(r.id) + '">Claim &amp; take control</button>';
     } else if (it.status === "claimed") {
-      actions = '<select id="disp_' + r.id + '">' + opts + '</select>' +
-        '<input id="note_' + r.id + '" placeholder="note (optional)">' +
-        '<button onclick="resolveIt(\\'' + r.id + '\\', \\'' + esc(it.claimedBy) + '\\')">Resolve &amp; hand back</button>';
+      actions = '<select id="disp_' + esc(r.id) + '">' + opts + '</select>' +
+        '<input id="note_' + esc(r.id) + '" placeholder="note (optional)">' +
+        '<button data-act="resolve" data-id="' + esc(r.id) + '">Resolve &amp; hand back</button>';
     } else {
       actions = '<span class="meta">' + esc(it.resolution && it.resolution.disposition) +
         (it.resolution && it.resolution.operator ? " by " + esc(it.resolution.operator) : "") + '</span>';
     }
-    return '<div class="card ' + it.status + '">' +
+    return '<div class="card ' + esc(it.status) + '">' +
       '<div><strong>' + esc(r.type) + '</strong> — ' + esc(r.capabilityId) +
       '<span class="badge">' + esc(it.status) + '</span></div>' +
       '<div class="reason">' + esc(r.reason) + '</div>' +
       (r.stepId ? '<div class="meta">step ' + esc(r.stepId) + ': ' + esc(r.intent) + '</div>' : "") +
       '<div class="meta">url: ' + esc(r.currentUrl) + '</div>' +
       '<div class="meta">requested ' + esc(r.requestedAt) + ' · expires ' + esc(r.expiresAt) + '</div>' +
-      (r.screenshotPath ? '<img src="/shot/' + esc(r.id) + '" alt="screenshot">' : "") +
+      (r.screenshotPath ? '<img src="/shot/' + encodeURIComponent(r.id) + '" alt="screenshot">' : "") +
       '<div style="margin-top:10px">' + actions + '</div></div>';
   }).join("");
 }
+document.getElementById("list").addEventListener("click", function (e) {
+  const btn = e.target.closest("button[data-act]");
+  if (!btn) return;
+  const id = btn.getAttribute("data-id");
+  if (btn.getAttribute("data-act") === "claim") claim(id);
+  else resolveIt(id);
+});
 async function claim(id) {
   const op = document.getElementById("op_" + id).value.trim();
   if (!op) return alert("Enter your name first.");
-  const res = await fetch("/api/interventions/" + id + "/claim", {
+  const res = await fetch("/api/interventions/" + encodeURIComponent(id) + "/claim", {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ operator: op }),
   });
   if (!res.ok) alert((await res.json()).error);
   refresh();
 }
-async function resolveIt(id, operator) {
+async function resolveIt(id) {
+  const it = LATEST[id];
+  const operator = it && it.claimedBy ? it.claimedBy : "";
   const disposition = document.getElementById("disp_" + id).value;
   const note = document.getElementById("note_" + id).value;
-  const res = await fetch("/api/interventions/" + id + "/resolve", {
+  const res = await fetch("/api/interventions/" + encodeURIComponent(id) + "/resolve", {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ disposition, operator, note }),
   });

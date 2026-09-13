@@ -46,6 +46,11 @@ export class InterventionStore {
     rec.status = "claimed";
     rec.claimedBy = operator;
     rec.claimedAt = nowIso();
+    // The TTL guards *unattended* requests; once a human owns the intervention
+    // the clock stops — expiring mid-intervention would yank control away.
+    const timer = this.timers.get(id);
+    if (timer) clearTimeout(timer);
+    this.timers.delete(id);
     this.persist();
     return rec;
   }
@@ -55,6 +60,13 @@ export class InterventionStore {
     if (!rec) throw new Error(`unknown intervention ${id}`);
     if (rec.status === "resolved" || rec.status === "expired") {
       throw new Error(`intervention ${id} already ${rec.status}`);
+    }
+    // Chain of custody: control must be explicitly taken before it can be
+    // handed back — resolving an unclaimed intervention would skip the
+    // paused→human transition and leave the audit trail claiming the agent
+    // never lost control.
+    if (rec.status !== "claimed") {
+      throw new Error(`intervention ${id} is ${rec.status}; claim it before resolving`);
     }
     rec.status = "resolved";
     rec.resolution = resolution;
@@ -70,7 +82,7 @@ export class InterventionStore {
 
   private expire(id: string): void {
     const rec = this.records.get(id);
-    if (!rec || rec.status === "resolved" || rec.status === "expired") return;
+    if (!rec || rec.status !== "pending") return;
     rec.status = "expired";
     rec.resolvedAt = nowIso();
     const resolution: InterventionResolution = { disposition: "expired", note: "TTL elapsed" };

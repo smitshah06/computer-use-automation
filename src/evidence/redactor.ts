@@ -18,7 +18,10 @@ export class Redactor {
 
   mask(text: string): string {
     let out = text;
-    for (const v of this.values) {
+    // Longest-first so a value that is a substring of another (e.g. a username
+    // that prefixes a password) cannot split the longer one and leak its tail.
+    const byLength = [...this.values].sort((a, b) => b.length - a.length);
+    for (const v of byLength) {
       if (out.includes(v)) out = out.split(v).join(this.replacement);
     }
     return out;

@@ -3,6 +3,7 @@ import {
   loadSecretsFromEnv,
   nowIso,
   resolveTemplate,
+  sleep,
   type CapabilityArtifact,
   type EscalationGateway,
   type InterventionRequest,
@@ -152,7 +153,14 @@ export class DiscoveryEngine {
     const maxTurns = this.opts.maxTurns ?? this.config.budgets.discoveryMaxTurns;
 
     for (let turn = 1; turn <= maxTurns; turn += 1) {
-      const decision = await this.provider.decide({ system, turns, tools: AGENT_TOOLS });
+      let decision: AssistantDecision;
+      try {
+        decision = await this.decideWithRetry({ system, turns, tools: AGENT_TOOLS });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        await this.captureStuck(`LLM provider failed: ${msg}`);
+        return { status: "stuck", summary: `LLM provider failed after retries: ${msg}`, turns: turn };
+      }
       this.logger.log("agent", "llm_decision", {
         turn,
         tool: decision.toolName,
@@ -201,7 +209,7 @@ export class DiscoveryEngine {
     const a = p.data;
 
     // stuck detection: the same action against the same page state
-    const sig = JSON.stringify({ k: a.kind, ref: a.ref, url: a.url, value: a.value, at: this.driver.url() });
+    const sig = JSON.stringify({ k: a.kind, ref: a.ref, url: a.url, value: a.value, key: a.key, at: this.driver.url() });
     const seen = (this.sigCount.get(sig) ?? 0) + 1;
     this.sigCount.set(sig, seen);
     if (seen >= 4) {
@@ -366,6 +374,31 @@ export class DiscoveryEngine {
     return { terminal: { status: "recorded", summary: f.summary, artifact, turns: 0 } };
   }
 
+  // Transient provider errors (rate limits, 5xx, network blips) get a bounded
+  // retry with backoff; a persistently failing provider ends the run as
+  // "stuck" rather than crashing it. Only discovery talks to a model, so this
+  // is the only retry-on-LLM in the system.
+  private async decideWithRetry(req: {
+    system: string;
+    turns: AgentTurn[];
+    tools: typeof AGENT_TOOLS;
+  }): Promise<AssistantDecision> {
+    let lastErr: unknown;
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        return await this.provider.decide(req);
+      } catch (e) {
+        lastErr = e;
+        this.logger.log("agent", "llm_call_failed", {
+          attempt,
+          error: e instanceof Error ? e.message : String(e),
+        });
+        if (attempt < 3) await sleep(1000 * attempt * attempt); // 1s, 4s
+      }
+    }
+    throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+  }
+
   private async requestApproval(reason: string, intent: string): Promise<string> {
     this.ivSeq += 1;
     const id = `iv_${this.logger.runId}_${this.ivSeq}`;
@@ -394,23 +427,29 @@ export class DiscoveryEngine {
   }
 
   // Perception hygiene: even though passwords are masked at the source, any
-  // node value or page text matching a registered secret is masked before the
-  // observation is rendered into the model transcript.
+  // secret appearing ANYWHERE in the observation — page text, title, node
+  // names, node values, even embedded in longer strings (an app echoing a
+  // credential back) — is masked before it can enter the model transcript.
   private async observeMasked(): Promise<string> {
     const obs = await this.driver.observe();
     const masked: Observation = {
       ...obs,
+      title: this.maskText(obs.title),
       pageText: this.maskText(obs.pageText),
-      nodes: obs.nodes.map((n) =>
-        n.value !== undefined && this.secretValues.includes(n.value) ? { ...n, value: "***" } : n,
-      ),
+      nodes: obs.nodes.map((n) => {
+        const m = { ...n, name: this.maskText(n.name) };
+        if (m.value !== undefined) m.value = this.maskText(m.value);
+        return m;
+      }),
     };
     return renderObservation(masked);
   }
 
   private maskText(text: string): string {
     let out = text;
-    for (const v of this.secretValues) out = out.split(v).join("***");
+    // Longest-first so one secret being a substring of another cannot leak.
+    const byLength = [...this.secretValues].sort((a, b) => b.length - a.length);
+    for (const v of byLength) out = out.split(v).join("***");
     return out;
   }
 

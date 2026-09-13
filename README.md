@@ -37,7 +37,7 @@ cp .env.example .env        # then edit
 [capabilities/member-savings-lookup.json](capabilities/member-savings-lookup.json) replays with
 just the two `SCRIBE_SECRET_*` vars set.
 
-Running without live services: `npm test` (55 unit + integration tests) needs **no API key and no
+Running without live services: `npm test` (58 unit + integration tests) needs **no API key and no
 running app** — integration tests boot their own target-app instances and drive the discovery
 loop with a scripted provider double.
 
@@ -92,13 +92,18 @@ npx tsx scripts/capture-escalation.ts
 ```
 
 Other commands: `npm run catalog` (list capabilities as an agent-facing contract summary),
-`--inject slow|error500|permission-denied|validation`, `--headed` on any run, `--no-console` to
-skip the operator console.
+`--inject slow|error500` (the other two injectable faults), `--headed` on any run, `--no-console`
+to skip the operator console. Permission denials and validation errors need no injection — they
+are natural app states (member `66666` is restricted for tellers; the deposit form rejects
+amounts under $5).
 
 ## Committed evidence (`/evidence/`)
 
 Every run writes `run.jsonl` (structured, redacted, actor-attributed log), `screenshots/` per
-step and on failure, the artifact snapshot, and `result.json` / `discovery-summary.json`.
+step and on failure, and `result.json` / `discovery-summary.json` (runs that produce or execute
+an artifact also snapshot it as `artifact.json`). Because `savingsBalance` is marked `sensitive`,
+committed `result.json` files show it as `"***"` — the values below are what the live terminal
+prints.
 
 | Directory | Scenario | Result |
 |---|---|---|
@@ -133,7 +138,7 @@ policy.yaml      deny-by-default allowlist: origins, action kinds, risky-action 
 ## Checks
 
 ```bash
-npm test            # 55 tests: schema, policy, classifier, escalation, driver, replay, discovery
+npm test            # 58 tests: schema, policy, classifier, escalation, driver, replay, discovery
 npm run typecheck   # strict tsc
 npm run lint        # eslint + dependency-boundary check (replay must not reach llm)
 ```

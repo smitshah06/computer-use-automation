@@ -1,5 +1,6 @@
 import {
   resolveTemplate,
+  resolveTemplateInRegex,
   type Condition,
   type LocatorStrategy,
   type StepTarget,
@@ -29,14 +30,16 @@ export function materializeCondition(c: Condition, ctx: TemplateContext): Condit
   if ("all" in c) return { all: c.all.map((x) => materializeCondition(x, ctx)) };
   if ("any" in c) return { any: c.any.map((x) => materializeCondition(x, ctx)) };
   if ("not" in c) return { not: materializeCondition(c.not, ctx) };
-  if ("urlMatches" in c) return { urlMatches: resolveTemplate(c.urlMatches, ctx) };
+  // urlMatches / valueMatches patterns are compiled as regexes: substituted
+  // runtime values are regex-escaped so data can't alter pattern semantics.
+  if ("urlMatches" in c) return { urlMatches: resolveTemplateInRegex(c.urlMatches, ctx) };
   if ("textPresent" in c) return { textPresent: resolveTemplate(c.textPresent, ctx) };
   if ("elementVisible" in c) return { elementVisible: materializeStrategy(c.elementVisible, ctx) };
   if ("elementAbsent" in c) return { elementAbsent: materializeStrategy(c.elementAbsent, ctx) };
   return {
     valueMatches: {
       target: materializeStrategy(c.valueMatches.target, ctx),
-      pattern: resolveTemplate(c.valueMatches.pattern, ctx),
+      pattern: resolveTemplateInRegex(c.valueMatches.pattern, ctx),
     },
   };
 }

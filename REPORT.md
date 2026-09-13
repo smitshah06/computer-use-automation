@@ -71,8 +71,9 @@ approved `capabilities/member-savings-lookup.json`).
 ## Determinism & error handling
 
 Replay executes per step: bounded `waitBefore` → resolve target through strategy ranks, where a
-strategy must match **exactly one** element (ambiguity falls through to the next rank — never
-guess) → policy check → act via Playwright actionability → verify `checkpoint`. No sleeps; every
+strategy must match **exactly one** element (zero matches falls through to the next rank; more
+than one aborts the whole resolve — never guess at which twin is right) → policy check → act via
+Playwright actionability → verify `checkpoint`. No sleeps; every
 wait is a named condition with a bounded timeout. No LLM anywhere (enforced, see Architecture).
 
 Any deviation runs the `DeviationClassifier` in strict precedence:

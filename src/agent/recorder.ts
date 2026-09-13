@@ -91,12 +91,26 @@ export class Recorder {
 
   // Checkpoint regex from an observed URL: escaped pathname with input
   // literals replaced by their template refs, resolved again at replay.
+  // Whole-segment matches parameterize at any length; embedded matches only
+  // for values >= 4 chars (mirroring parameterizeValue) so a short input like
+  // "1" cannot corrupt unrelated path segments such as "/section1".
   private pathRegex(url: string): string {
-    let re = escapeRegex(pathnameOf(url));
-    for (const [name, val] of Object.entries(this.spec.inputs)) {
-      if (val) re = re.split(escapeRegex(val)).join(`{{inputs.${name}}}`);
-    }
-    return re;
+    const embeddable = Object.entries(this.spec.inputs)
+      .filter(([, val]) => Boolean(val) && val.length >= 4)
+      .sort((a, b) => b[1].length - a[1].length);
+    return pathnameOf(url)
+      .split("/")
+      .map((seg) => {
+        for (const [name, val] of Object.entries(this.spec.inputs)) {
+          if (val && seg === val) return `{{inputs.${name}}}`;
+        }
+        let out = escapeRegex(seg);
+        for (const [name, val] of embeddable) {
+          out = out.split(escapeRegex(val)).join(`{{inputs.${name}}}`);
+        }
+        return out;
+      })
+      .join("/");
   }
 
   private paramStrategy(s: LocatorStrategy): LocatorStrategy {

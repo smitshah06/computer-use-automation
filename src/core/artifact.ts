@@ -72,7 +72,7 @@ export type Outcome = z.infer<typeof OutcomeSchema>;
 
 export const RecoveryActionSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("dismiss"), target: StepTargetSchema }).strict(),
-  z.object({ kind: z.literal("waitRetry"), backoffMs: z.number().int().positive() }).strict(),
+  z.object({ kind: z.literal("waitRetry"), backoffMs: z.number().int().positive().max(60_000) }).strict(),
   z.object({ kind: z.literal("runSteps"), stepIds: z.array(z.string()).min(1) }).strict(),
 ]);
 export type RecoveryAction = z.infer<typeof RecoveryActionSchema>;

@@ -84,12 +84,24 @@ describe("InterventionStore lifecycle and persistence", () => {
   it("enforces claim/resolve state rules", async () => {
     const store = new InterventionStore(mkLogger());
     const pending = store.open(req("iv_2"));
+    expect(() => store.resolve("iv_2", { disposition: "abort" })).toThrow(/claim it before resolving/);
     store.claim("iv_2", "alice");
     expect(() => store.claim("iv_2", "bob")).toThrow(/not claimable/);
     expect(() => store.resolve("nope", { disposition: "abort" })).toThrow(/unknown/);
     store.resolve("iv_2", { disposition: "abort", operator: "alice" });
     expect(() => store.resolve("iv_2", { disposition: "abort" })).toThrow(/already resolved/);
     await pending;
+    store.close();
+  });
+
+  it("stops the TTL clock once a human has claimed the intervention", async () => {
+    const store = new InterventionStore(mkLogger());
+    const pending = store.open(req("iv_4", 60)); // would expire in 60ms unattended
+    store.claim("iv_4", "alice");
+    await new Promise((r) => setTimeout(r, 120));
+    expect(store.get("iv_4")?.status).toBe("claimed"); // still owned by the human
+    store.resolve("iv_4", { disposition: "completed_step", operator: "alice" });
+    await expect(pending).resolves.toMatchObject({ disposition: "completed_step" });
     store.close();
   });
 
