@@ -62,11 +62,16 @@ Key shapes and why:
   migrations, `capability.version` for flow semantics, `appFingerprint` to fail fast on a
   wrong/upgraded app), and `reviewStatus` gates unattended risky replay.
 
-The committed artifact was recorded by a real `gpt-4o` run, then human-reviewed: I added an
-`extractPattern` (`\$[\d,]+\.\d{2}`) after the first replay returned the whole account row text,
-marked the balance output `sensitive`, and added two recoveries — the review lifecycle doing its
-job (diff the as-recorded draft, `evidence/disc_20260912173144/artifact.json`, against the
-approved `capabilities/member-savings-lookup.json`).
+All three committed artifacts were recorded by real `gpt-4o` runs, then human-reviewed — the
+lifecycle doing its job (diff the as-recorded drafts, `evidence/disc_*/artifact.json`, against
+what was approved). Review caught real hazards. Balance lookup: an `extractPattern`
+(`\$[\d,]+\.\d{2}`) after the first replay returned the whole account row text, a `sensitive`
+flag, two recoveries. `subaccount-open`: the risky submit gained a
+`textPresent: "Sub-Account Created"` checkpoint so a rejected form cannot fall through to the
+confirmation extract, which itself gained a capture-group pattern (`(CU-\d{4}-\d+)`).
+`member-standing-check`: the success checkpoint gained `textPresent: "Member Profile"` because
+the access-denied page shares the profile URL, and the `ACCESS_DENIED` detector was trimmed to
+an id-free phrase so it matches any restricted member, not just the one seen in discovery.
 
 ## Determinism & error handling
 
@@ -78,8 +83,9 @@ wait is a named condition with a bounded timeout. No LLM anywhere (enforced, see
 
 Any deviation runs the `DeviationClassifier` in strict precedence:
 
-1. **Declared business outcome** detector matches → return `business_outcome` (e.g.
-   `MEMBER_NOT_FOUND`). A legitimate answer, not an error.
+1. **Declared business outcome** detector matches → return `business_outcome`. A legitimate
+   answer, not an error — the committed artifacts declare `MEMBER_NOT_FOUND`, `ACCESS_DENIED`,
+   and `DEPOSIT_BELOW_MINIMUM`, each reached naturally in evidence, no fault injection needed.
 2. **Declared recovery** matches → apply it (`dismiss` a known dialog, `waitRetry` with backoff,
    `runSteps` e.g. re-auth), bounded by `maxAttempts`, logged, then re-attempt the step.
 3. Else **hard failure**: capture screenshot + a11y snapshot + URL, return
@@ -89,9 +95,11 @@ The result contract is a discriminated union — `success{outputs} | business_ou
 hard_failure{error} | escalated{interventions, finalStatus}` — so callers branch on structure,
 not on string matching. Every run also returns per-step telemetry (strategy rank used, attempts,
 durations). UI drift, the secondary concern: rising fallback-rank usage is the early-warning
-signal, `appFingerprint` mismatch fails fast at entry, and evidence bundles make locator
-failures diagnosable (`evidence/replay_20260912173739` shows an injected interstitial detected
-and dismissed mid-run).
+signal — live in `evidence/replay_20260913015027`, where a standing check recorded on member
+`12345` replays against `45678` and step s8 falls from the recorded-name locator to the
+parameterized `nearText` rank. `appFingerprint` mismatch fails fast at entry, and evidence
+bundles make locator failures diagnosable (`evidence/replay_20260912173739` shows an injected
+interstitial detected and dismissed mid-run).
 
 ## Heterogeneity & multi-tenant
 
@@ -131,7 +139,8 @@ fresh session. Human actions are recorded into the same `run.jsonl` as `actor:"h
 sensitive values masked. Handback dispositions: `completed_step` (engine **re-verifies the failed
 step's own checkpoint** before continuing — trust but verify), `fixed_environment` (re-attempt
 the step), `abort`. Risky-action approval reuses the identical pipeline as intervention type
-`approval` — one mechanism, two uses.
+`approval` — one mechanism, two uses, both in committed evidence: the session-expiry assist
+below, and every `subaccount-open` replay (e.g. `evidence/replay_20260913015057`).
 
 Evidence: `evidence/replay_escalation_20260912180848` — injected one-shot session expiry, s4
 checkpoint fails, intervention raised, operator claims, re-authenticates in the live session,
@@ -150,8 +159,11 @@ on-screen text is untrusted data and the chokepoint holds regardless of what the
 Risk classes: reads/navigation are `safe`; mutating submits are `risky`. Discovery always
 requires an approval intervention before a risky act. Replay executes risky steps unattended
 only if the artifact is `approved` *and* policy allows; otherwise it pauses for approval. The
-asymmetry is deliberate for banking: a blocked action costs seconds, a wrong irreversible write
-is unbounded.
+committed `subaccount-open` capability pins that gate open — `riskLevel: mutating`,
+`unattendedReplay: false` — so every replay pauses at the submit ("capability policy forbids
+unattended risky actions") until an operator grants `approve_once`
+(`evidence/replay_20260913015057`). The asymmetry is deliberate for banking: a blocked action
+costs seconds, a wrong irreversible write is unbounded.
 
 Redaction is layered: credentials exist only as `{{secrets.*}}` templates resolved from env at
 act time; the perception layer masks secret values before the model sees them; the run logger
@@ -170,7 +182,9 @@ screencast — the control-transfer model is real, the UI is not the point). **D
 drivers** are designed, not built — the artifact already records what they need. **Tenant
 overlays** are a designed schema, not code; no second app variant was built. **Assisted
 fallback** (bounded LLM repair on replay failure) is designed but cut to keep replay purity
-undiluted. One capability is recorded, not a library. Stretch goals picked: **approval gating**
+undiluted. Three capabilities are recorded against one app (read-only lookup, two-output
+standing check, mutating opener) — a demonstration set, not a cross-app library. Stretch goals
+picked: **approval gating**
 (`draft → approved` via `npm run approve`) and the **agent-facing catalog** (`npm run catalog`
 prints the contract view; `replay --capability <id> --param k=v` is the typed invocation).
 

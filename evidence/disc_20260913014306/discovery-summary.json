@@ -1,0 +1,6 @@
+{
+  "status": "business_outcome",
+  "summary": "Initial deposit amount does not meet the minimum requirement to open a holiday club account.",
+  "turns": 13,
+  "capabilityId": "subaccount-open"
+}

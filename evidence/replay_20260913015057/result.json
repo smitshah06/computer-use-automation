@@ -1,0 +1,144 @@
+{
+  "runId": "replay_20260913015057",
+  "mode": "replay",
+  "capabilityId": "subaccount-open",
+  "capabilityVersion": "1.0.0",
+  "params": {
+    "memberId": "12345",
+    "accountType": "Checking",
+    "nickname": "Rainy Day",
+    "depositAmount": "40.00"
+  },
+  "startedAt": "2026-09-13T01:50:57.689Z",
+  "finishedAt": "2026-09-13T01:50:59.509Z",
+  "result": {
+    "status": "escalated",
+    "interventions": [
+      {
+        "id": "iv_replay_20260913015057_1",
+        "reason": "capability policy forbids unattended risky actions",
+        "type": "approval",
+        "disposition": "approve_once",
+        "operator": "operator-jsmith"
+      }
+    ],
+    "finalStatus": "success",
+    "outputs": {
+      "confirmationNumber": "CU-2026-4182"
+    }
+  },
+  "telemetry": [
+    {
+      "stepId": "s1",
+      "strategyRank": null,
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 78
+    },
+    {
+      "stepId": "s2",
+      "strategyRank": 0,
+      "strategyKind": "role",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 78
+    },
+    {
+      "stepId": "s3",
+      "strategyRank": 0,
+      "strategyKind": "role",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 66
+    },
+    {
+      "stepId": "s4",
+      "strategyRank": 0,
+      "strategyKind": "role",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 101
+    },
+    {
+      "stepId": "s5",
+      "strategyRank": 0,
+      "strategyKind": "role",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 82
+    },
+    {
+      "stepId": "s6",
+      "strategyRank": 0,
+      "strategyKind": "nearText",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 33
+    },
+    {
+      "stepId": "s7",
+      "strategyRank": 0,
+      "strategyKind": "role",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 85
+    },
+    {
+      "stepId": "s8",
+      "strategyRank": 0,
+      "strategyKind": "role",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 68
+    },
+    {
+      "stepId": "s9",
+      "strategyRank": 0,
+      "strategyKind": "role",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 65
+    },
+    {
+      "stepId": "s10",
+      "strategyRank": 0,
+      "strategyKind": "nearText",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 32
+    },
+    {
+      "stepId": "s11",
+      "strategyRank": 0,
+      "strategyKind": "nearText",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 34
+    },
+    {
+      "stepId": "s12",
+      "strategyRank": 0,
+      "strategyKind": "nearText",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 33
+    },
+    {
+      "stepId": "s13",
+      "strategyRank": 0,
+      "strategyKind": "role",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 284
+    },
+    {
+      "stepId": "s14",
+      "strategyRank": 0,
+      "strategyKind": "nearText",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 33
+    }
+  ],
+  "evidenceDir": "evidence/replay_20260913015057"
+}

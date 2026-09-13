@@ -1,0 +1,8 @@
+{
+  "code": "ACCESS_DENIED",
+  "terminal": true,
+  "description": "Access to the member record is not authorized for this user.",
+  "detector": {
+    "textPresent": "You do not have permission to view this member record. Contact a supervisor to request elevated access. (Member 66666)"
+  }
+}

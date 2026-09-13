@@ -1,0 +1,6 @@
+{
+  "status": "recorded",
+  "summary": "Sub-account creation completed for member 12345 with the account type 'Holiday Club' and nickname 'Vacation Fund'. The initial deposit was $25.00. The confirmation number for this transaction is CU-2026-4181.",
+  "turns": 14,
+  "capabilityId": "subaccount-open"
+}

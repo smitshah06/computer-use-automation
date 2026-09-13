@@ -1,0 +1,26 @@
+[
+  {
+    "request": {
+      "id": "iv_replay_20260913015057_1",
+      "runId": "replay_20260913015057",
+      "type": "approval",
+      "capabilityId": "subaccount-open",
+      "reason": "capability policy forbids unattended risky actions",
+      "stepId": "s13",
+      "intent": "Submit sub-account creation form",
+      "currentUrl": "http://localhost:4600/members/12345/accounts/new",
+      "screenshotPath": "screenshots/013_s13_intervention.png",
+      "requestedAt": "2026-09-13T01:50:59.185Z",
+      "expiresAt": "2026-09-13T02:20:59.185Z"
+    },
+    "status": "resolved",
+    "claimedBy": "operator-jsmith",
+    "claimedAt": "2026-09-13T01:50:59.374Z",
+    "resolution": {
+      "disposition": "approve_once",
+      "operator": "operator-jsmith",
+      "note": "risky action reviewed and approved for this run only"
+    },
+    "resolvedAt": "2026-09-13T01:50:59.378Z"
+  }
+]

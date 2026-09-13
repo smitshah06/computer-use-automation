@@ -1,0 +1,35 @@
+{"seq":1,"ts":"2026-09-13T01:50:19.537Z","actor":"replay","type":"run_start","capabilityId":"member-standing-check","capabilityVersion":"1.0.0","params":{"memberId":"12345"},"reviewStatus":"approved"}
+{"seq":2,"ts":"2026-09-13T01:50:20.121Z","actor":"replay","type":"act_navigate","kind":"navigate","phase":"replay","risk":"safe","intent":"open the capability entrypoint","url":"http://localhost:4600/login"}
+{"seq":3,"ts":"2026-09-13T01:50:20.152Z","actor":"replay","type":"fingerprint_ok","entrypoint":"http://localhost:4600/login"}
+{"seq":4,"ts":"2026-09-13T01:50:20.152Z","actor":"replay","type":"step_start","stepId":"s1","intent":"Open the application entrypoint","action":"navigate"}
+{"seq":5,"ts":"2026-09-13T01:50:20.165Z","actor":"replay","type":"act_navigate","kind":"navigate","phase":"replay","risk":"safe","stepId":"s1","intent":"Open the application entrypoint","url":"http://localhost:4600/login"}
+{"seq":6,"ts":"2026-09-13T01:50:20.225Z","actor":"replay","type":"step_done","stepId":"s1","strategyRank":null,"attempts":1,"recoveriesApplied":[]}
+{"seq":7,"ts":"2026-09-13T01:50:20.225Z","actor":"replay","type":"step_start","stepId":"s2","intent":"Enter teller username","action":"fill"}
+{"seq":8,"ts":"2026-09-13T01:50:20.266Z","actor":"replay","type":"act_fill","kind":"fill","phase":"replay","risk":"safe","stepId":"s2","intent":"Enter teller username","value":"***","target":"textbox \"Teller ID\"","strategyRank":0,"strategyKind":"role","extracted":"***"}
+{"seq":9,"ts":"2026-09-13T01:50:20.285Z","actor":"replay","type":"step_done","stepId":"s2","strategyRank":0,"strategyKind":"role","attempts":1,"recoveriesApplied":[]}
+{"seq":10,"ts":"2026-09-13T01:50:20.285Z","actor":"replay","type":"step_start","stepId":"s3","intent":"Enter teller password","action":"fill"}
+{"seq":11,"ts":"2026-09-13T01:50:20.336Z","actor":"replay","type":"act_fill","kind":"fill","phase":"replay","risk":"safe","stepId":"s3","intent":"Enter teller password","value":"***","target":"textbox \"Passcode\"","strategyRank":0,"strategyKind":"role","extracted":"***"}
+{"seq":12,"ts":"2026-09-13T01:50:20.368Z","actor":"replay","type":"step_done","stepId":"s3","strategyRank":0,"strategyKind":"role","attempts":1,"recoveriesApplied":[]}
+{"seq":13,"ts":"2026-09-13T01:50:20.368Z","actor":"replay","type":"step_start","stepId":"s4","intent":"Submit login form","action":"click"}
+{"seq":14,"ts":"2026-09-13T01:50:20.434Z","actor":"replay","type":"act_click","kind":"click","phase":"replay","risk":"safe","stepId":"s4","intent":"Submit login form","target":"button \"Sign In\"","strategyRank":0,"strategyKind":"role"}
+{"seq":15,"ts":"2026-09-13T01:50:20.470Z","actor":"replay","type":"step_done","stepId":"s4","strategyRank":0,"strategyKind":"role","attempts":1,"recoveriesApplied":[]}
+{"seq":16,"ts":"2026-09-13T01:50:20.470Z","actor":"replay","type":"step_start","stepId":"s5","intent":"Navigate to Member Search","action":"click"}
+{"seq":17,"ts":"2026-09-13T01:50:20.516Z","actor":"replay","type":"act_click","kind":"click","phase":"replay","risk":"safe","stepId":"s5","intent":"Navigate to Member Search","target":"link \"Member Search\"","strategyRank":0,"strategyKind":"role"}
+{"seq":18,"ts":"2026-09-13T01:50:20.552Z","actor":"replay","type":"step_done","stepId":"s5","strategyRank":0,"strategyKind":"role","attempts":1,"recoveriesApplied":[]}
+{"seq":19,"ts":"2026-09-13T01:50:20.552Z","actor":"replay","type":"step_start","stepId":"s6","intent":"Enter member number for search","action":"fill"}
+{"seq":20,"ts":"2026-09-13T01:50:20.563Z","actor":"replay","type":"act_fill","kind":"fill","phase":"replay","risk":"safe","stepId":"s6","intent":"Enter member number for search","value":"12345","target":"textbox near \"Member Number\"","strategyRank":0,"strategyKind":"nearText"}
+{"seq":21,"ts":"2026-09-13T01:50:20.585Z","actor":"replay","type":"step_done","stepId":"s6","strategyRank":0,"strategyKind":"nearText","attempts":1,"recoveriesApplied":[]}
+{"seq":22,"ts":"2026-09-13T01:50:20.586Z","actor":"replay","type":"step_start","stepId":"s7","intent":"Submit member search","action":"click"}
+{"seq":23,"ts":"2026-09-13T01:50:20.646Z","actor":"replay","type":"act_click","kind":"click","phase":"replay","risk":"safe","stepId":"s7","intent":"Submit member search","target":"button \"Search\"","strategyRank":0,"strategyKind":"role"}
+{"seq":24,"ts":"2026-09-13T01:50:20.670Z","actor":"replay","type":"step_done","stepId":"s7","strategyRank":0,"strategyKind":"role","attempts":1,"recoveriesApplied":[]}
+{"seq":25,"ts":"2026-09-13T01:50:20.670Z","actor":"replay","type":"step_start","stepId":"s8","intent":"Open member profile","action":"click"}
+{"seq":26,"ts":"2026-09-13T01:50:20.716Z","actor":"replay","type":"act_click","kind":"click","phase":"replay","risk":"safe","stepId":"s8","intent":"Open member profile","target":"link \"Alvarez, Maria\"","strategyRank":0,"strategyKind":"role"}
+{"seq":27,"ts":"2026-09-13T01:50:20.755Z","actor":"replay","type":"step_done","stepId":"s8","strategyRank":0,"strategyKind":"role","attempts":1,"recoveriesApplied":[]}
+{"seq":28,"ts":"2026-09-13T01:50:20.755Z","actor":"replay","type":"step_start","stepId":"s9","intent":"Extract member's status","action":"extract"}
+{"seq":29,"ts":"2026-09-13T01:50:20.769Z","actor":"replay","type":"act_extract","kind":"extract","phase":"replay","risk":"safe","stepId":"s9","intent":"Extract member's status","target":"font near \"Status\"","strategyRank":0,"strategyKind":"nearText","extracted":"Active"}
+{"seq":30,"ts":"2026-09-13T01:50:20.788Z","actor":"replay","type":"step_done","stepId":"s9","strategyRank":0,"strategyKind":"nearText","attempts":1,"recoveriesApplied":[]}
+{"seq":31,"ts":"2026-09-13T01:50:20.788Z","actor":"replay","type":"step_start","stepId":"s10","intent":"Extract member's 'Member Since' date","action":"extract"}
+{"seq":32,"ts":"2026-09-13T01:50:20.796Z","actor":"replay","type":"act_extract","kind":"extract","phase":"replay","risk":"safe","stepId":"s10","intent":"Extract member's 'Member Since' date","target":"font near \"Member Since\"","strategyRank":0,"strategyKind":"nearText","extracted":"03/11/2014"}
+{"seq":33,"ts":"2026-09-13T01:50:20.821Z","actor":"replay","type":"step_done","stepId":"s10","strategyRank":0,"strategyKind":"nearText","attempts":1,"recoveriesApplied":[]}
+{"seq":34,"ts":"2026-09-13T01:50:20.823Z","actor":"replay","type":"success_checkpoint_ok"}
+{"seq":35,"ts":"2026-09-13T01:50:20.847Z","actor":"replay","type":"run_finished","status":"success"}

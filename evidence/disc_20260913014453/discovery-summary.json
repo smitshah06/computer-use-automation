@@ -1,0 +1,6 @@
+{
+  "status": "recorded",
+  "summary": "Successfully retrieved the member standing and 'Member Since' date from the profile.",
+  "turns": 10,
+  "capabilityId": "member-standing-check"
+}

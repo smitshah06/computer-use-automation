@@ -1,0 +1,126 @@
+{
+  "runId": "replay_20260913015112",
+  "mode": "replay",
+  "capabilityId": "subaccount-open",
+  "capabilityVersion": "1.0.0",
+  "params": {
+    "memberId": "12345",
+    "accountType": "Holiday Club",
+    "nickname": "Vacation Fund",
+    "depositAmount": "2.00"
+  },
+  "startedAt": "2026-09-13T01:51:12.794Z",
+  "finishedAt": "2026-09-13T01:51:17.835Z",
+  "result": {
+    "status": "escalated",
+    "interventions": [
+      {
+        "id": "iv_replay_20260913015112_1",
+        "reason": "capability policy forbids unattended risky actions",
+        "type": "approval",
+        "disposition": "approve_once",
+        "operator": "operator-jsmith"
+      }
+    ],
+    "finalStatus": "business_outcome",
+    "code": "DEPOSIT_BELOW_MINIMUM"
+  },
+  "telemetry": [
+    {
+      "stepId": "s1",
+      "strategyRank": null,
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 82
+    },
+    {
+      "stepId": "s2",
+      "strategyRank": 0,
+      "strategyKind": "role",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 75
+    },
+    {
+      "stepId": "s3",
+      "strategyRank": 0,
+      "strategyKind": "role",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 85
+    },
+    {
+      "stepId": "s4",
+      "strategyRank": 0,
+      "strategyKind": "role",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 100
+    },
+    {
+      "stepId": "s5",
+      "strategyRank": 0,
+      "strategyKind": "role",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 81
+    },
+    {
+      "stepId": "s6",
+      "strategyRank": 0,
+      "strategyKind": "nearText",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 33
+    },
+    {
+      "stepId": "s7",
+      "strategyRank": 0,
+      "strategyKind": "role",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 85
+    },
+    {
+      "stepId": "s8",
+      "strategyRank": 0,
+      "strategyKind": "role",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 69
+    },
+    {
+      "stepId": "s9",
+      "strategyRank": 0,
+      "strategyKind": "role",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 80
+    },
+    {
+      "stepId": "s10",
+      "strategyRank": 0,
+      "strategyKind": "nearText",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 33
+    },
+    {
+      "stepId": "s11",
+      "strategyRank": 0,
+      "strategyKind": "nearText",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 34
+    },
+    {
+      "stepId": "s12",
+      "strategyRank": 0,
+      "strategyKind": "nearText",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 34
+    }
+  ],
+  "evidenceDir": "evidence/replay_20260913015112"
+}

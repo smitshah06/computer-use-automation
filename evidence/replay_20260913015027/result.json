@@ -1,0 +1,100 @@
+{
+  "runId": "replay_20260913015027",
+  "mode": "replay",
+  "capabilityId": "member-standing-check",
+  "capabilityVersion": "1.0.0",
+  "params": {
+    "memberId": "45678"
+  },
+  "startedAt": "2026-09-13T01:50:27.749Z",
+  "finishedAt": "2026-09-13T01:50:28.671Z",
+  "result": {
+    "status": "success",
+    "outputs": {
+      "memberStatus": "Dormant",
+      "memberSince": "10/17/2011"
+    }
+  },
+  "telemetry": [
+    {
+      "stepId": "s1",
+      "strategyRank": null,
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 67
+    },
+    {
+      "stepId": "s2",
+      "strategyRank": 0,
+      "strategyKind": "role",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 66
+    },
+    {
+      "stepId": "s3",
+      "strategyRank": 0,
+      "strategyKind": "role",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 82
+    },
+    {
+      "stepId": "s4",
+      "strategyRank": 0,
+      "strategyKind": "role",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 102
+    },
+    {
+      "stepId": "s5",
+      "strategyRank": 0,
+      "strategyKind": "role",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 82
+    },
+    {
+      "stepId": "s6",
+      "strategyRank": 0,
+      "strategyKind": "nearText",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 32
+    },
+    {
+      "stepId": "s7",
+      "strategyRank": 0,
+      "strategyKind": "role",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 85
+    },
+    {
+      "stepId": "s8",
+      "strategyRank": 1,
+      "strategyKind": "nearText",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 85
+    },
+    {
+      "stepId": "s9",
+      "strategyRank": 0,
+      "strategyKind": "nearText",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 32
+    },
+    {
+      "stepId": "s10",
+      "strategyRank": 0,
+      "strategyKind": "nearText",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 34
+    }
+  ],
+  "evidenceDir": "evidence/replay_20260913015027"
+}

@@ -1,0 +1,561 @@
+{
+  "schemaVersion": "1.0",
+  "capability": {
+    "id": "subaccount-open",
+    "version": "1.0.0",
+    "name": "Open member sub-account",
+    "description": "Open a new sub-account (Savings, Checking, or Holiday Club) for a member with a nickname and an initial deposit, submit the application, and return the confirmation number. Mutating: replay pauses for operator approval on the submit step (unattendedReplay=false)."
+  },
+  "target": {
+    "appId": "cu-backoffice",
+    "surface": "web",
+    "entrypoint": "{{env.APP_BASE_URL}}/login",
+    "appFingerprint": {
+      "titlePattern": "CU BackOffice -",
+      "markers": []
+    }
+  },
+  "inputs": [
+    {
+      "name": "memberId",
+      "type": "string",
+      "required": true,
+      "pattern": "^\\d+$",
+      "sensitive": false,
+      "example": "12345"
+    },
+    {
+      "name": "accountType",
+      "type": "string",
+      "required": true,
+      "pattern": "^(Savings|Checking|Holiday Club)$",
+      "sensitive": false,
+      "example": "Holiday Club"
+    },
+    {
+      "name": "nickname",
+      "type": "string",
+      "required": true,
+      "sensitive": false,
+      "example": "Vacation Fund"
+    },
+    {
+      "name": "depositAmount",
+      "type": "string",
+      "required": true,
+      "pattern": "^\\d+(\\.\\d{2})?$",
+      "sensitive": false,
+      "example": "25.00"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "confirmationNumber",
+      "type": "string",
+      "sensitive": false,
+      "sourceStep": "s14"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "intent": "Open the application entrypoint",
+      "action": "navigate",
+      "url": "{{env.APP_BASE_URL}}/login",
+      "sensitive": false,
+      "checkpoint": {
+        "urlMatches": "/login"
+      },
+      "risk": "safe"
+    },
+    {
+      "id": "s2",
+      "intent": "Enter Teller Username",
+      "action": "fill",
+      "target": {
+        "strategies": [
+          {
+            "kind": "role",
+            "role": "textbox",
+            "name": "Teller ID"
+          },
+          {
+            "kind": "labelText",
+            "value": "Teller ID"
+          },
+          {
+            "kind": "nearText",
+            "value": "Teller ID"
+          },
+          {
+            "kind": "css",
+            "value": "#ctl00_LoginCtl_txtUser"
+          },
+          {
+            "kind": "bbox",
+            "value": [
+              603,
+              135,
+              139,
+              21
+            ]
+          }
+        ],
+        "elementDescription": "textbox \"Teller ID\"",
+        "framePath": []
+      },
+      "value": "{{secrets.tellerUsername}}",
+      "sensitive": true,
+      "risk": "safe"
+    },
+    {
+      "id": "s3",
+      "intent": "Enter Teller Password",
+      "action": "fill",
+      "target": {
+        "strategies": [
+          {
+            "kind": "role",
+            "role": "textbox",
+            "name": "Passcode"
+          },
+          {
+            "kind": "labelText",
+            "value": "Passcode"
+          },
+          {
+            "kind": "nearText",
+            "value": "Passcode"
+          },
+          {
+            "kind": "css",
+            "value": "#ctl00_LoginCtl_txtPass"
+          },
+          {
+            "kind": "bbox",
+            "value": [
+              603,
+              168,
+              139,
+              21
+            ]
+          }
+        ],
+        "elementDescription": "textbox \"Passcode\"",
+        "framePath": []
+      },
+      "value": "{{secrets.tellerPassword}}",
+      "sensitive": true,
+      "risk": "safe"
+    },
+    {
+      "id": "s4",
+      "intent": "Submit sign-in form",
+      "action": "click",
+      "target": {
+        "strategies": [
+          {
+            "kind": "role",
+            "role": "button",
+            "name": "Sign In"
+          },
+          {
+            "kind": "css",
+            "value": "#ctl00_LoginCtl_btnGo"
+          },
+          {
+            "kind": "bbox",
+            "value": [
+              603,
+              201,
+              58,
+              21
+            ]
+          }
+        ],
+        "elementDescription": "button \"Sign In\"",
+        "framePath": []
+      },
+      "sensitive": false,
+      "checkpoint": {
+        "urlMatches": "/desk"
+      },
+      "risk": "safe"
+    },
+    {
+      "id": "s5",
+      "intent": "Navigate to Member Search",
+      "action": "click",
+      "target": {
+        "strategies": [
+          {
+            "kind": "role",
+            "role": "link",
+            "name": "Member Search"
+          },
+          {
+            "kind": "css",
+            "value": "#ctl00_Nav_lnkSearch"
+          },
+          {
+            "kind": "bbox",
+            "value": [
+              84,
+              34,
+              89,
+              16
+            ]
+          }
+        ],
+        "elementDescription": "link \"Member Search\"",
+        "framePath": []
+      },
+      "sensitive": false,
+      "checkpoint": {
+        "urlMatches": "/members"
+      },
+      "risk": "safe"
+    },
+    {
+      "id": "s6",
+      "intent": "Enter member number",
+      "action": "fill",
+      "target": {
+        "strategies": [
+          {
+            "kind": "nearText",
+            "value": "Member Number"
+          },
+          {
+            "kind": "css",
+            "value": "#ctl00_MbrSrch_txtNum"
+          },
+          {
+            "kind": "bbox",
+            "value": [
+              128,
+              106,
+              97,
+              21
+            ]
+          }
+        ],
+        "elementDescription": "textbox near \"Member Number\"",
+        "framePath": []
+      },
+      "value": "{{inputs.memberId}}",
+      "sensitive": false,
+      "risk": "safe"
+    },
+    {
+      "id": "s7",
+      "intent": "Execute member search",
+      "action": "click",
+      "target": {
+        "strategies": [
+          {
+            "kind": "role",
+            "role": "button",
+            "name": "Search"
+          },
+          {
+            "kind": "nearText",
+            "value": "Member Number"
+          },
+          {
+            "kind": "css",
+            "value": "#ctl00_MbrSrch_btnFind"
+          },
+          {
+            "kind": "bbox",
+            "value": [
+              237,
+              106,
+              58,
+              21
+            ]
+          }
+        ],
+        "elementDescription": "button \"Search\"",
+        "framePath": []
+      },
+      "sensitive": false,
+      "risk": "safe"
+    },
+    {
+      "id": "s8",
+      "intent": "Open member profile for Alvarez, Maria",
+      "action": "click",
+      "target": {
+        "strategies": [
+          {
+            "kind": "role",
+            "role": "link",
+            "name": "Alvarez, Maria"
+          },
+          {
+            "kind": "nearText",
+            "value": "{{inputs.memberId}}"
+          },
+          {
+            "kind": "css",
+            "value": "#ctl00_MbrGrd_r0_c1 > font > a"
+          },
+          {
+            "kind": "bbox",
+            "value": [
+              274,
+              201,
+              80,
+              16
+            ]
+          }
+        ],
+        "elementDescription": "link \"Alvarez, Maria\"",
+        "framePath": []
+      },
+      "sensitive": false,
+      "checkpoint": {
+        "urlMatches": "/members/{{inputs.memberId}}"
+      },
+      "risk": "safe"
+    },
+    {
+      "id": "s9",
+      "intent": "Initiate sub-account opening process",
+      "action": "click",
+      "target": {
+        "strategies": [
+          {
+            "kind": "role",
+            "role": "link",
+            "name": "Open Sub-Account"
+          },
+          {
+            "kind": "css",
+            "value": "#ctl00_Det_lnkNew"
+          },
+          {
+            "kind": "bbox",
+            "value": [
+              8,
+              369,
+              106,
+              16
+            ]
+          }
+        ],
+        "elementDescription": "link \"Open Sub-Account\"",
+        "framePath": []
+      },
+      "sensitive": false,
+      "checkpoint": {
+        "urlMatches": "/members/{{inputs.memberId}}/accounts/new"
+      },
+      "risk": "safe"
+    },
+    {
+      "id": "s10",
+      "intent": "Select account type as Holiday Club",
+      "action": "select",
+      "target": {
+        "strategies": [
+          {
+            "kind": "nearText",
+            "value": "Account Type"
+          },
+          {
+            "kind": "css",
+            "value": "#ctl00_NewAcct_ddlType"
+          },
+          {
+            "kind": "bbox",
+            "value": [
+              111,
+              122,
+              98,
+              19
+            ]
+          }
+        ],
+        "elementDescription": "combobox near \"Account Type\"",
+        "framePath": []
+      },
+      "value": "{{inputs.accountType}}",
+      "sensitive": false,
+      "risk": "safe"
+    },
+    {
+      "id": "s11",
+      "intent": "Enter nickname for the sub-account",
+      "action": "fill",
+      "target": {
+        "strategies": [
+          {
+            "kind": "nearText",
+            "value": "Nickname"
+          },
+          {
+            "kind": "css",
+            "value": "#ctl00_NewAcct_txtNick"
+          },
+          {
+            "kind": "bbox",
+            "value": [
+              111,
+              153,
+              153,
+              21
+            ]
+          }
+        ],
+        "elementDescription": "textbox near \"Nickname\"",
+        "framePath": []
+      },
+      "value": "{{inputs.nickname}}",
+      "sensitive": false,
+      "risk": "safe"
+    },
+    {
+      "id": "s12",
+      "intent": "Enter initial deposit amount",
+      "action": "fill",
+      "target": {
+        "strategies": [
+          {
+            "kind": "nearText",
+            "value": "Initial Deposit"
+          },
+          {
+            "kind": "css",
+            "value": "#ctl00_NewAcct_txtDep"
+          },
+          {
+            "kind": "bbox",
+            "value": [
+              111,
+              186,
+              83,
+              21
+            ]
+          }
+        ],
+        "elementDescription": "textbox near \"Initial Deposit\"",
+        "framePath": []
+      },
+      "value": "{{inputs.depositAmount}}",
+      "sensitive": false,
+      "risk": "safe"
+    },
+    {
+      "id": "s13",
+      "intent": "Submit sub-account creation form",
+      "action": "click",
+      "target": {
+        "strategies": [
+          {
+            "kind": "role",
+            "role": "button",
+            "name": "Create Account"
+          },
+          {
+            "kind": "css",
+            "value": "#ctl00_NewAcct_btnCreate"
+          },
+          {
+            "kind": "bbox",
+            "value": [
+              111,
+              219,
+              107,
+              21
+            ]
+          }
+        ],
+        "elementDescription": "button \"Create Account\"",
+        "framePath": []
+      },
+      "sensitive": false,
+      "checkpoint": {
+        "textPresent": "Sub-Account Created"
+      },
+      "risk": "risky"
+    },
+    {
+      "id": "s14",
+      "intent": "Capture confirmation number",
+      "action": "extract",
+      "target": {
+        "strategies": [
+          {
+            "kind": "nearText",
+            "value": "Confirmation #"
+          },
+          {
+            "kind": "css",
+            "value": "#ctl00_Conf_lblNum"
+          },
+          {
+            "kind": "bbox",
+            "value": [
+              103,
+              99,
+              96,
+              16
+            ]
+          }
+        ],
+        "elementDescription": "b at #ctl00_Conf_lblNum",
+        "framePath": []
+      },
+      "sensitive": false,
+      "outputName": "confirmationNumber",
+      "extractPattern": "(CU-\\d{4}-\\d+)",
+      "risk": "safe"
+    }
+  ],
+  "outcomes": [
+    {
+      "code": "DEPOSIT_BELOW_MINIMUM",
+      "terminal": true,
+      "description": "The application rejected the initial deposit as below the required minimum of $5.00 — a legitimate terminal answer for the supplied inputs.",
+      "detector": {
+        "textPresent": "Initial deposit must be at least $5.00."
+      }
+    }
+  ],
+  "recoveries": [],
+  "successCheckpoint": {
+    "all": [
+      {
+        "urlMatches": "/members/{{inputs.memberId}}/accounts/new"
+      },
+      {
+        "textPresent": "Sub-Account Created"
+      }
+    ]
+  },
+  "policy": {
+    "requiredOrigins": [
+      "http://localhost:4600"
+    ],
+    "allowedActionKinds": [
+      "navigate",
+      "fill",
+      "click",
+      "select",
+      "extract"
+    ],
+    "riskLevel": "mutating",
+    "unattendedReplay": false
+  },
+  "provenance": {
+    "provider": "openai",
+    "model": "gpt-4o",
+    "runId": "disc_20260913014228",
+    "recordedAt": "2026-09-13T01:42:50.116Z",
+    "reviewStatus": "approved",
+    "reviewedBy": "operator-jsmith",
+    "reviewedAt": "2026-09-13T01:50:14.395Z"
+  }
+}

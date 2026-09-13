@@ -1,0 +1,8 @@
+{
+  "code": "MEMBER_NOT_FOUND",
+  "terminal": true,
+  "description": "No member exists with the provided member number",
+  "detector": {
+    "textPresent": "No records found."
+  }
+}

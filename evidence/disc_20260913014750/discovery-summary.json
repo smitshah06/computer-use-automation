@@ -1,0 +1,6 @@
+{
+  "status": "business_outcome",
+  "summary": "Access to the member record is not authorized for this user.",
+  "turns": 8,
+  "capabilityId": "member-standing-check"
+}

@@ -1,0 +1,75 @@
+{
+  "runId": "replay_20260913015045",
+  "mode": "replay",
+  "capabilityId": "member-standing-check",
+  "capabilityVersion": "1.0.0",
+  "params": {
+    "memberId": "99999"
+  },
+  "startedAt": "2026-09-13T01:50:45.161Z",
+  "finishedAt": "2026-09-13T01:50:45.973Z",
+  "result": {
+    "status": "business_outcome",
+    "code": "MEMBER_NOT_FOUND",
+    "description": "No member exists with the provided member number",
+    "extracted": {}
+  },
+  "telemetry": [
+    {
+      "stepId": "s1",
+      "strategyRank": null,
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 57
+    },
+    {
+      "stepId": "s2",
+      "strategyRank": 0,
+      "strategyKind": "role",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 48
+    },
+    {
+      "stepId": "s3",
+      "strategyRank": 0,
+      "strategyKind": "role",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 68
+    },
+    {
+      "stepId": "s4",
+      "strategyRank": 0,
+      "strategyKind": "role",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 100
+    },
+    {
+      "stepId": "s5",
+      "strategyRank": 0,
+      "strategyKind": "role",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 83
+    },
+    {
+      "stepId": "s6",
+      "strategyRank": 0,
+      "strategyKind": "nearText",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 31
+    },
+    {
+      "stepId": "s7",
+      "strategyRank": 0,
+      "strategyKind": "role",
+      "attempts": 1,
+      "recoveriesApplied": [],
+      "durationMs": 84
+    }
+  ],
+  "evidenceDir": "evidence/replay_20260913015045"
+}

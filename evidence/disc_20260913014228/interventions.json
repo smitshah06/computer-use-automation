@@ -1,0 +1,25 @@
+[
+  {
+    "request": {
+      "id": "iv_disc_20260913014228_1",
+      "runId": "disc_20260913014228",
+      "type": "approval",
+      "capabilityId": "subaccount-open",
+      "reason": "risky action during discovery requires human confirmation",
+      "intent": "Submit sub-account creation form",
+      "currentUrl": "http://localhost:4600/members/12345/accounts/new",
+      "screenshotPath": "screenshots/012_discovery_approval.png",
+      "requestedAt": "2026-09-13T01:42:47.513Z",
+      "expiresAt": "2026-09-13T02:12:47.513Z"
+    },
+    "status": "resolved",
+    "claimedBy": "operator-jsmith",
+    "claimedAt": "2026-09-13T01:42:47.804Z",
+    "resolution": {
+      "disposition": "approve_once",
+      "operator": "operator-jsmith",
+      "note": "risky action reviewed and approved for this run only"
+    },
+    "resolvedAt": "2026-09-13T01:42:47.806Z"
+  }
+]

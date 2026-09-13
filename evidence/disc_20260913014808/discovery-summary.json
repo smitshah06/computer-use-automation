@@ -1,0 +1,6 @@
+{
+  "status": "business_outcome",
+  "summary": "No member exists with the provided member number",
+  "turns": 7,
+  "capabilityId": "member-standing-check"
+}

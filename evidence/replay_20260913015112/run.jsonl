@@ -1,0 +1,49 @@
+{"seq":1,"ts":"2026-09-13T01:51:12.794Z","actor":"replay","type":"run_start","capabilityId":"subaccount-open","capabilityVersion":"1.0.0","params":{"memberId":"12345","accountType":"Holiday Club","nickname":"Vacation Fund","depositAmount":"2.00"},"reviewStatus":"approved"}
+{"seq":2,"ts":"2026-09-13T01:51:13.380Z","actor":"replay","type":"act_navigate","kind":"navigate","phase":"replay","risk":"safe","intent":"open the capability entrypoint","url":"http://localhost:4600/login"}
+{"seq":3,"ts":"2026-09-13T01:51:13.411Z","actor":"replay","type":"fingerprint_ok","entrypoint":"http://localhost:4600/login"}
+{"seq":4,"ts":"2026-09-13T01:51:13.411Z","actor":"replay","type":"step_start","stepId":"s1","intent":"Open the application entrypoint","action":"navigate"}
+{"seq":5,"ts":"2026-09-13T01:51:13.422Z","actor":"replay","type":"act_navigate","kind":"navigate","phase":"replay","risk":"safe","stepId":"s1","intent":"Open the application entrypoint","url":"http://localhost:4600/login"}
+{"seq":6,"ts":"2026-09-13T01:51:13.493Z","actor":"replay","type":"step_done","stepId":"s1","strategyRank":null,"attempts":1,"recoveriesApplied":[]}
+{"seq":7,"ts":"2026-09-13T01:51:13.493Z","actor":"replay","type":"step_start","stepId":"s2","intent":"Enter Teller Username","action":"fill"}
+{"seq":8,"ts":"2026-09-13T01:51:13.532Z","actor":"replay","type":"act_fill","kind":"fill","phase":"replay","risk":"safe","stepId":"s2","intent":"Enter Teller Username","value":"***","target":"textbox \"Teller ID\"","strategyRank":0,"strategyKind":"role","extracted":"***"}
+{"seq":9,"ts":"2026-09-13T01:51:13.568Z","actor":"replay","type":"step_done","stepId":"s2","strategyRank":0,"strategyKind":"role","attempts":1,"recoveriesApplied":[]}
+{"seq":10,"ts":"2026-09-13T01:51:13.568Z","actor":"replay","type":"step_start","stepId":"s3","intent":"Enter Teller Password","action":"fill"}
+{"seq":11,"ts":"2026-09-13T01:51:13.626Z","actor":"replay","type":"act_fill","kind":"fill","phase":"replay","risk":"safe","stepId":"s3","intent":"Enter Teller Password","value":"***","target":"textbox \"Passcode\"","strategyRank":0,"strategyKind":"role","extracted":"***"}
+{"seq":12,"ts":"2026-09-13T01:51:13.653Z","actor":"replay","type":"step_done","stepId":"s3","strategyRank":0,"strategyKind":"role","attempts":1,"recoveriesApplied":[]}
+{"seq":13,"ts":"2026-09-13T01:51:13.653Z","actor":"replay","type":"step_start","stepId":"s4","intent":"Submit sign-in form","action":"click"}
+{"seq":14,"ts":"2026-09-13T01:51:13.718Z","actor":"replay","type":"act_click","kind":"click","phase":"replay","risk":"safe","stepId":"s4","intent":"Submit sign-in form","target":"button \"Sign In\"","strategyRank":0,"strategyKind":"role"}
+{"seq":15,"ts":"2026-09-13T01:51:13.753Z","actor":"replay","type":"step_done","stepId":"s4","strategyRank":0,"strategyKind":"role","attempts":1,"recoveriesApplied":[]}
+{"seq":16,"ts":"2026-09-13T01:51:13.753Z","actor":"replay","type":"step_start","stepId":"s5","intent":"Navigate to Member Search","action":"click"}
+{"seq":17,"ts":"2026-09-13T01:51:13.799Z","actor":"replay","type":"act_click","kind":"click","phase":"replay","risk":"safe","stepId":"s5","intent":"Navigate to Member Search","target":"link \"Member Search\"","strategyRank":0,"strategyKind":"role"}
+{"seq":18,"ts":"2026-09-13T01:51:13.834Z","actor":"replay","type":"step_done","stepId":"s5","strategyRank":0,"strategyKind":"role","attempts":1,"recoveriesApplied":[]}
+{"seq":19,"ts":"2026-09-13T01:51:13.835Z","actor":"replay","type":"step_start","stepId":"s6","intent":"Enter member number","action":"fill"}
+{"seq":20,"ts":"2026-09-13T01:51:13.842Z","actor":"replay","type":"act_fill","kind":"fill","phase":"replay","risk":"safe","stepId":"s6","intent":"Enter member number","value":"12345","target":"textbox near \"Member Number\"","strategyRank":0,"strategyKind":"nearText"}
+{"seq":21,"ts":"2026-09-13T01:51:13.868Z","actor":"replay","type":"step_done","stepId":"s6","strategyRank":0,"strategyKind":"nearText","attempts":1,"recoveriesApplied":[]}
+{"seq":22,"ts":"2026-09-13T01:51:13.868Z","actor":"replay","type":"step_start","stepId":"s7","intent":"Execute member search","action":"click"}
+{"seq":23,"ts":"2026-09-13T01:51:13.929Z","actor":"replay","type":"act_click","kind":"click","phase":"replay","risk":"safe","stepId":"s7","intent":"Execute member search","target":"button \"Search\"","strategyRank":0,"strategyKind":"role"}
+{"seq":24,"ts":"2026-09-13T01:51:13.953Z","actor":"replay","type":"step_done","stepId":"s7","strategyRank":0,"strategyKind":"role","attempts":1,"recoveriesApplied":[]}
+{"seq":25,"ts":"2026-09-13T01:51:13.953Z","actor":"replay","type":"step_start","stepId":"s8","intent":"Open member profile for Alvarez, Maria","action":"click"}
+{"seq":26,"ts":"2026-09-13T01:51:13.997Z","actor":"replay","type":"act_click","kind":"click","phase":"replay","risk":"safe","stepId":"s8","intent":"Open member profile for Alvarez, Maria","target":"link \"Alvarez, Maria\"","strategyRank":0,"strategyKind":"role"}
+{"seq":27,"ts":"2026-09-13T01:51:14.022Z","actor":"replay","type":"step_done","stepId":"s8","strategyRank":0,"strategyKind":"role","attempts":1,"recoveriesApplied":[]}
+{"seq":28,"ts":"2026-09-13T01:51:14.022Z","actor":"replay","type":"step_start","stepId":"s9","intent":"Initiate sub-account opening process","action":"click"}
+{"seq":29,"ts":"2026-09-13T01:51:14.065Z","actor":"replay","type":"act_click","kind":"click","phase":"replay","risk":"safe","stepId":"s9","intent":"Initiate sub-account opening process","target":"link \"Open Sub-Account\"","strategyRank":0,"strategyKind":"role"}
+{"seq":30,"ts":"2026-09-13T01:51:14.102Z","actor":"replay","type":"step_done","stepId":"s9","strategyRank":0,"strategyKind":"role","attempts":1,"recoveriesApplied":[]}
+{"seq":31,"ts":"2026-09-13T01:51:14.102Z","actor":"replay","type":"step_start","stepId":"s10","intent":"Select account type as Holiday Club","action":"select"}
+{"seq":32,"ts":"2026-09-13T01:51:14.109Z","actor":"replay","type":"act_select","kind":"select","phase":"replay","risk":"safe","stepId":"s10","intent":"Select account type as Holiday Club","value":"Holiday Club","target":"combobox near \"Account Type\"","strategyRank":0,"strategyKind":"nearText"}
+{"seq":33,"ts":"2026-09-13T01:51:14.135Z","actor":"replay","type":"step_done","stepId":"s10","strategyRank":0,"strategyKind":"nearText","attempts":1,"recoveriesApplied":[]}
+{"seq":34,"ts":"2026-09-13T01:51:14.135Z","actor":"replay","type":"step_start","stepId":"s11","intent":"Enter nickname for the sub-account","action":"fill"}
+{"seq":35,"ts":"2026-09-13T01:51:14.141Z","actor":"replay","type":"act_fill","kind":"fill","phase":"replay","risk":"safe","stepId":"s11","intent":"Enter nickname for the sub-account","value":"Vacation Fund","target":"textbox near \"Nickname\"","strategyRank":0,"strategyKind":"nearText"}
+{"seq":36,"ts":"2026-09-13T01:51:14.169Z","actor":"replay","type":"step_done","stepId":"s11","strategyRank":0,"strategyKind":"nearText","attempts":1,"recoveriesApplied":[]}
+{"seq":37,"ts":"2026-09-13T01:51:14.169Z","actor":"replay","type":"step_start","stepId":"s12","intent":"Enter initial deposit amount","action":"fill"}
+{"seq":38,"ts":"2026-09-13T01:51:14.174Z","actor":"replay","type":"act_fill","kind":"fill","phase":"replay","risk":"safe","stepId":"s12","intent":"Enter initial deposit amount","value":"2.00","target":"textbox near \"Initial Deposit\"","strategyRank":0,"strategyKind":"nearText"}
+{"seq":39,"ts":"2026-09-13T01:51:14.203Z","actor":"replay","type":"step_done","stepId":"s12","strategyRank":0,"strategyKind":"nearText","attempts":1,"recoveriesApplied":[]}
+{"seq":40,"ts":"2026-09-13T01:51:14.203Z","actor":"replay","type":"step_start","stepId":"s13","intent":"Submit sub-account creation form","action":"click"}
+{"seq":41,"ts":"2026-09-13T01:51:14.204Z","actor":"replay","type":"policy_needs_approval","kind":"click","phase":"replay","risk":"risky","stepId":"s13","intent":"Submit sub-account creation form","target":"button \"Create Account\"","reason":"capability policy forbids unattended risky actions"}
+{"seq":42,"ts":"2026-09-13T01:51:14.235Z","actor":"system","type":"approval","id":"iv_replay_20260913015112_1","runId":"replay_20260913015112","capabilityId":"subaccount-open","reason":"capability policy forbids unattended risky actions","stepId":"s13","intent":"Submit sub-account creation form","currentUrl":"http://localhost:4600/members/12345/accounts/new","screenshotPath":"screenshots/013_s13_intervention.png","requestedAt":"2026-09-13T01:51:14.235Z","expiresAt":"2026-09-13T02:21:14.235Z"}
+{"seq":43,"ts":"2026-09-13T01:51:14.235Z","actor":"system","type":"control_transition","from":"agent","to":"paused","by":"system","reason":"capability policy forbids unattended risky actions"}
+{"seq":44,"ts":"2026-09-13T01:51:14.653Z","actor":"system","type":"control_transition","from":"paused","to":"human","by":"operator-jsmith","reason":"claimed intervention iv_replay_20260913015112_1"}
+{"seq":45,"ts":"2026-09-13T01:51:14.657Z","actor":"system","type":"control_transition","from":"human","to":"agent","by":"operator-jsmith","reason":"intervention iv_replay_20260913015112_1: approve_once"}
+{"seq":46,"ts":"2026-09-13T01:51:14.657Z","actor":"operator","type":"intervention_resolved","id":"iv_replay_20260913015112_1","disposition":"approve_once","operator":"operator-jsmith","note":"risky action reviewed and approved for this run only"}
+{"seq":47,"ts":"2026-09-13T01:51:14.714Z","actor":"replay","type":"act_click","kind":"click","phase":"replay","risk":"risky","stepId":"s13","intent":"Submit sub-account creation form","target":"button \"Create Account\"","strategyRank":0,"strategyKind":"role"}
+{"seq":48,"ts":"2026-09-13T01:51:17.799Z","actor":"replay","type":"business_outcome","stepId":"s13","code":"DEPOSIT_BELOW_MINIMUM"}
+{"seq":49,"ts":"2026-09-13T01:51:17.836Z","actor":"replay","type":"run_finished","status":"escalated"}

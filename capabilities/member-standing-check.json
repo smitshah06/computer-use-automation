@@ -1,0 +1,429 @@
+{
+  "schemaVersion": "1.0",
+  "capability": {
+    "id": "member-standing-check",
+    "version": "1.0.0",
+    "name": "Member standing check",
+    "description": "Verify a member's standing: look up the member by member number, open the member profile, and report the member's status and member-since date. Requires profile-level access — restricted records surface as the ACCESS_DENIED outcome."
+  },
+  "target": {
+    "appId": "cu-backoffice",
+    "surface": "web",
+    "entrypoint": "{{env.APP_BASE_URL}}/login",
+    "appFingerprint": {
+      "titlePattern": "CU BackOffice -",
+      "markers": []
+    }
+  },
+  "inputs": [
+    {
+      "name": "memberId",
+      "type": "string",
+      "required": true,
+      "pattern": "^\\d+$",
+      "sensitive": false,
+      "example": "12345"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "memberStatus",
+      "type": "string",
+      "sensitive": false,
+      "sourceStep": "s9"
+    },
+    {
+      "name": "memberSince",
+      "type": "date",
+      "sensitive": false,
+      "sourceStep": "s10"
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "intent": "Open the application entrypoint",
+      "action": "navigate",
+      "url": "{{env.APP_BASE_URL}}/login",
+      "sensitive": false,
+      "checkpoint": {
+        "urlMatches": "/login"
+      },
+      "risk": "safe"
+    },
+    {
+      "id": "s2",
+      "intent": "Enter teller username",
+      "action": "fill",
+      "target": {
+        "strategies": [
+          {
+            "kind": "role",
+            "role": "textbox",
+            "name": "Teller ID"
+          },
+          {
+            "kind": "labelText",
+            "value": "Teller ID"
+          },
+          {
+            "kind": "nearText",
+            "value": "Teller ID"
+          },
+          {
+            "kind": "css",
+            "value": "#ctl00_LoginCtl_txtUser"
+          },
+          {
+            "kind": "bbox",
+            "value": [
+              603,
+              135,
+              139,
+              21
+            ]
+          }
+        ],
+        "elementDescription": "textbox \"Teller ID\"",
+        "framePath": []
+      },
+      "value": "{{secrets.tellerUsername}}",
+      "sensitive": true,
+      "risk": "safe"
+    },
+    {
+      "id": "s3",
+      "intent": "Enter teller password",
+      "action": "fill",
+      "target": {
+        "strategies": [
+          {
+            "kind": "role",
+            "role": "textbox",
+            "name": "Passcode"
+          },
+          {
+            "kind": "labelText",
+            "value": "Passcode"
+          },
+          {
+            "kind": "nearText",
+            "value": "Passcode"
+          },
+          {
+            "kind": "css",
+            "value": "#ctl00_LoginCtl_txtPass"
+          },
+          {
+            "kind": "bbox",
+            "value": [
+              603,
+              168,
+              139,
+              21
+            ]
+          }
+        ],
+        "elementDescription": "textbox \"Passcode\"",
+        "framePath": []
+      },
+      "value": "{{secrets.tellerPassword}}",
+      "sensitive": true,
+      "risk": "safe"
+    },
+    {
+      "id": "s4",
+      "intent": "Submit login form",
+      "action": "click",
+      "target": {
+        "strategies": [
+          {
+            "kind": "role",
+            "role": "button",
+            "name": "Sign In"
+          },
+          {
+            "kind": "css",
+            "value": "#ctl00_LoginCtl_btnGo"
+          },
+          {
+            "kind": "bbox",
+            "value": [
+              603,
+              201,
+              58,
+              21
+            ]
+          }
+        ],
+        "elementDescription": "button \"Sign In\"",
+        "framePath": []
+      },
+      "sensitive": false,
+      "checkpoint": {
+        "urlMatches": "/desk"
+      },
+      "risk": "safe"
+    },
+    {
+      "id": "s5",
+      "intent": "Navigate to Member Search",
+      "action": "click",
+      "target": {
+        "strategies": [
+          {
+            "kind": "role",
+            "role": "link",
+            "name": "Member Search"
+          },
+          {
+            "kind": "css",
+            "value": "#ctl00_Nav_lnkSearch"
+          },
+          {
+            "kind": "bbox",
+            "value": [
+              84,
+              34,
+              89,
+              16
+            ]
+          }
+        ],
+        "elementDescription": "link \"Member Search\"",
+        "framePath": []
+      },
+      "sensitive": false,
+      "checkpoint": {
+        "urlMatches": "/members"
+      },
+      "risk": "safe"
+    },
+    {
+      "id": "s6",
+      "intent": "Enter member number for search",
+      "action": "fill",
+      "target": {
+        "strategies": [
+          {
+            "kind": "nearText",
+            "value": "Member Number"
+          },
+          {
+            "kind": "css",
+            "value": "#ctl00_MbrSrch_txtNum"
+          },
+          {
+            "kind": "bbox",
+            "value": [
+              128,
+              106,
+              97,
+              21
+            ]
+          }
+        ],
+        "elementDescription": "textbox near \"Member Number\"",
+        "framePath": []
+      },
+      "value": "{{inputs.memberId}}",
+      "sensitive": false,
+      "risk": "safe"
+    },
+    {
+      "id": "s7",
+      "intent": "Submit member search",
+      "action": "click",
+      "target": {
+        "strategies": [
+          {
+            "kind": "role",
+            "role": "button",
+            "name": "Search"
+          },
+          {
+            "kind": "nearText",
+            "value": "Member Number"
+          },
+          {
+            "kind": "css",
+            "value": "#ctl00_MbrSrch_btnFind"
+          },
+          {
+            "kind": "bbox",
+            "value": [
+              237,
+              106,
+              58,
+              21
+            ]
+          }
+        ],
+        "elementDescription": "button \"Search\"",
+        "framePath": []
+      },
+      "sensitive": false,
+      "risk": "safe"
+    },
+    {
+      "id": "s8",
+      "intent": "Open member profile",
+      "action": "click",
+      "target": {
+        "strategies": [
+          {
+            "kind": "role",
+            "role": "link",
+            "name": "Alvarez, Maria"
+          },
+          {
+            "kind": "nearText",
+            "value": "{{inputs.memberId}}"
+          },
+          {
+            "kind": "css",
+            "value": "#ctl00_MbrGrd_r0_c1 > font > a"
+          },
+          {
+            "kind": "bbox",
+            "value": [
+              274,
+              201,
+              80,
+              16
+            ]
+          }
+        ],
+        "elementDescription": "link \"Alvarez, Maria\"",
+        "framePath": []
+      },
+      "sensitive": false,
+      "checkpoint": {
+        "all": [
+          {
+            "urlMatches": "/members/{{inputs.memberId}}"
+          },
+          {
+            "textPresent": "Member Profile"
+          }
+        ]
+      },
+      "risk": "safe"
+    },
+    {
+      "id": "s9",
+      "intent": "Extract member's status",
+      "action": "extract",
+      "target": {
+        "strategies": [
+          {
+            "kind": "nearText",
+            "value": "Status"
+          },
+          {
+            "kind": "css",
+            "value": "#ctl00_Det_lblStatus > font"
+          },
+          {
+            "kind": "bbox",
+            "value": [
+              106,
+              186,
+              34,
+              16
+            ]
+          }
+        ],
+        "elementDescription": "font near \"Status\"",
+        "framePath": []
+      },
+      "sensitive": false,
+      "outputName": "memberStatus",
+      "extractPattern": "(\\S+)$",
+      "risk": "safe"
+    },
+    {
+      "id": "s10",
+      "intent": "Extract member's 'Member Since' date",
+      "action": "extract",
+      "target": {
+        "strategies": [
+          {
+            "kind": "nearText",
+            "value": "Member Since"
+          },
+          {
+            "kind": "css",
+            "value": "#ctl00_Det_lblJoined > font"
+          },
+          {
+            "kind": "bbox",
+            "value": [
+              106,
+              213,
+              67,
+              16
+            ]
+          }
+        ],
+        "elementDescription": "font near \"Member Since\"",
+        "framePath": []
+      },
+      "sensitive": false,
+      "outputName": "memberSince",
+      "extractPattern": "(\\d{2}/\\d{2}/\\d{4})",
+      "risk": "safe"
+    }
+  ],
+  "outcomes": [
+    {
+      "code": "ACCESS_DENIED",
+      "terminal": true,
+      "description": "Access to the member record is not authorized for this user.",
+      "detector": {
+        "textPresent": "You do not have permission to view this member record."
+      }
+    },
+    {
+      "code": "MEMBER_NOT_FOUND",
+      "terminal": true,
+      "description": "No member exists with the provided member number",
+      "detector": {
+        "textPresent": "No records found."
+      }
+    }
+  ],
+  "recoveries": [],
+  "successCheckpoint": {
+    "all": [
+      {
+        "urlMatches": "/members/{{inputs.memberId}}"
+      },
+      {
+        "textPresent": "Member Profile"
+      }
+    ]
+  },
+  "policy": {
+    "requiredOrigins": [
+      "http://localhost:4600"
+    ],
+    "allowedActionKinds": [
+      "navigate",
+      "fill",
+      "click",
+      "extract"
+    ],
+    "riskLevel": "readonly",
+    "unattendedReplay": true
+  },
+  "provenance": {
+    "provider": "openai",
+    "model": "gpt-4o",
+    "runId": "disc_20260913014453",
+    "recordedAt": "2026-09-13T01:45:03.467Z",
+    "reviewStatus": "approved",
+    "reviewedBy": "operator-jsmith",
+    "reviewedAt": "2026-09-13T01:50:15.021Z"
+  }
+}
