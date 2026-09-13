@@ -17,6 +17,7 @@ import { ReplayEngine } from "../replay";
 import { DiscoveryEngine } from "../agent";
 import { makeProvider } from "../llm";
 import { OperatorConsole, OperatorGateway } from "../escalation";
+import { buildHealthReport, collectRunResults, renderHealthReport } from "../evidence/locator-health";
 
 const CAPS_DIR = "capabilities";
 const EVIDENCE_DIR = "evidence";
@@ -310,6 +311,23 @@ program
       console.log(`  policy:   ${a.policy.riskLevel}, unattended=${a.policy.unattendedReplay}, origins=${a.policy.requiredOrigins.join(" ")}`);
       console.log(`  steps:    ${a.steps.length} (${f})`);
     }
+  });
+
+program
+  .command("health")
+  .description("Locator-health report: aggregate per-step strategy-rank telemetry from replay evidence into a drift signal")
+  .option("--evidence <dir>", "evidence root to scan", EVIDENCE_DIR)
+  .option("--json", "print the raw report as JSON", false)
+  .option("--ci", "exit 1 if any capability is drifting or broken", false)
+  .action((o) => {
+    const runs = collectRunResults(o.evidence);
+    const report = buildHealthReport(runs, o.evidence);
+    if (o.json) {
+      console.log(JSON.stringify(report, null, 2));
+    } else {
+      for (const line of renderHealthReport(report)) console.log(line);
+    }
+    if (o.ci && report.capabilities.some((c) => c.status !== "healthy")) process.exitCode = 1;
   });
 
 program.parseAsync(process.argv).catch((e: unknown) => {

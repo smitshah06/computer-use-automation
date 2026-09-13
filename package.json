@@ -16,6 +16,7 @@
     "replay": "tsx src/cli/index.ts replay",
     "approve": "tsx src/cli/index.ts approve",
     "catalog": "tsx src/cli/index.ts catalog",
+    "health": "tsx src/cli/index.ts health",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src test && node scripts/depcheck.mjs",
     "depcheck": "node scripts/depcheck.mjs",
