@@ -16,7 +16,7 @@ import { RunLogger } from "../evidence/run-logger";
 import { ReplayEngine } from "../replay";
 import { DiscoveryEngine } from "../agent";
 import { makeProvider } from "../llm";
-import { OperatorConsole, OperatorGateway } from "../escalation";
+import { OperatorConsole, OperatorGateway, newConsoleToken } from "../escalation";
 import { buildHealthReport, collectRunResults, renderHealthReport } from "../evidence/locator-health";
 
 const CAPS_DIR = "capabilities";
@@ -83,13 +83,23 @@ async function withOperatorConsole<T>(
   fn: (gateway: OperatorGateway | undefined) => Promise<T>,
 ): Promise<T> {
   if (!enabled) return fn(undefined);
-  const gateway = new OperatorGateway(driver, logger);
+  // Console auth: a stable token via SCRIBE_CONSOLE_TOKEN, else a fresh random
+  // one per run — either way the console never starts unauthenticated.
+  // Dispositions are HMAC-signed with SCRIBE_SIGNING_SECRET; without one the
+  // per-run token signs (structure intact, but the key dies with the process —
+  // pin the env var for audit trails verifiable after the run).
+  const authToken = process.env.SCRIBE_CONSOLE_TOKEN ?? newConsoleToken();
+  const signingSecret = process.env.SCRIBE_SIGNING_SECRET ?? authToken;
+  const gateway = new OperatorGateway(driver, logger, { signingSecret });
   const operatorConsole = new OperatorConsole(gateway, {
     port: config.escalation.operatorPort,
     runDir: logger.runDir,
+    authToken,
   });
   await operatorConsole.start();
-  console.log(`operator console: http://127.0.0.1:${config.escalation.operatorPort}/ (interventions appear there)`);
+  console.log(
+    `operator console: http://127.0.0.1:${config.escalation.operatorPort}/?token=${authToken} (auth required; interventions appear there)`,
+  );
   try {
     return await fn(gateway);
   } finally {

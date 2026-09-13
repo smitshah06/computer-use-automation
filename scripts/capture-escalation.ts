@@ -21,11 +21,16 @@ import { PlaywrightDriver } from "../src/surface";
 import { Redactor } from "../src/evidence/redactor";
 import { RunLogger } from "../src/evidence/run-logger";
 import { ReplayEngine } from "../src/replay";
-import { OperatorConsole, OperatorGateway } from "../src/escalation";
+import { OperatorConsole, OperatorGateway, newConsoleToken } from "../src/escalation";
 import type { InterventionRecord } from "../src/escalation/store";
 
 const CAP_PATH = process.argv[2] ?? "capabilities/member-savings-lookup.json";
 const OPERATOR = "operator-jsmith";
+// Same auth posture as the CLI composition root: the console never starts
+// unauthenticated, and operator dispositions are HMAC-signed into evidence.
+const AUTH_TOKEN = process.env.SCRIBE_CONSOLE_TOKEN ?? newConsoleToken();
+const SIGNING_SECRET = process.env.SCRIBE_SIGNING_SECRET ?? AUTH_TOKEN;
+const AUTH = { "x-scribe-token": AUTH_TOKEN };
 
 async function until<T>(fn: () => Promise<T | undefined>, timeoutMs = 30_000): Promise<T> {
   const deadline = Date.now() + timeoutMs;
@@ -78,10 +83,11 @@ async function main(): Promise<void> {
     "evidence",
   );
   const driver = new PlaywrightDriver(policy, logger);
-  const gateway = new OperatorGateway(driver, logger);
+  const gateway = new OperatorGateway(driver, logger, { signingSecret: SIGNING_SECRET });
   const operatorConsole = new OperatorConsole(gateway, {
     port: config.escalation.operatorPort,
     runDir: logger.runDir,
+    authToken: AUTH_TOKEN,
   });
   await operatorConsole.start();
 
@@ -94,14 +100,14 @@ async function main(): Promise<void> {
 
   try {
     const iv = await until<InterventionRecord>(async () => {
-      const list = (await (await fetch(`${consoleUrl}/api/interventions`)).json()) as InterventionRecord[];
+      const list = (await (await fetch(`${consoleUrl}/api/interventions`, { headers: AUTH })).json()) as InterventionRecord[];
       return list.find((x) => x.status === "pending");
     });
     console.log(`intervention pending: ${iv.request.id} — ${iv.request.reason}`);
 
     const claim = await fetch(`${consoleUrl}/api/interventions/${iv.request.id}/claim`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...AUTH },
       body: JSON.stringify({ operator: OPERATOR }),
     });
     if (!claim.ok) throw new Error(`claim failed (${claim.status})`);
@@ -141,7 +147,7 @@ async function main(): Promise<void> {
 
     const resolve = await fetch(`${consoleUrl}/api/interventions/${iv.request.id}/resolve`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...AUTH },
       body: JSON.stringify({
         disposition: "completed_step",
         operator: OPERATOR,

@@ -6,6 +6,7 @@ import type {
 import type { RunLogger } from "../evidence/run-logger";
 import type { HumanActionEvent, SurfaceDriver } from "../surface";
 import { RunController } from "./controller";
+import { signResolution } from "./signing";
 import { InterventionStore, type InterventionRecord } from "./store";
 
 // Only an explicit abort is terminal for CONTROL. A denied approval or an
@@ -15,6 +16,13 @@ import { InterventionStore, type InterventionRecord } from "./store";
 // would wedge the state machine: the next intervention of a continuing run
 // throws "illegal control transition: aborted -> paused".
 const TERMINAL_DISPOSITIONS = new Set(["abort"]);
+
+export interface GatewayOptions {
+  // HMAC key for signing operator dispositions into tamper-evident audit
+  // records. Optional at this seam (unit embeddings); the CLI composition
+  // root always supplies one.
+  signingSecret?: string;
+}
 
 // Orchestrates a control transfer end to end: pause the run, wait for an
 // operator, record everything the human does in the live session, and hand
@@ -27,6 +35,7 @@ export class OperatorGateway implements EscalationGateway {
   constructor(
     private readonly driver: SurfaceDriver,
     private readonly logger: RunLogger,
+    private readonly opts: GatewayOptions = {},
   ) {
     this.controller = new RunController(logger);
     this.store = new InterventionStore(logger);
@@ -66,7 +75,25 @@ export class OperatorGateway implements EscalationGateway {
   }
 
   resolve(id: string, resolution: InterventionResolution): InterventionRecord {
-    return this.store.resolve(id, resolution);
+    const secret = this.opts.signingSecret;
+    // The chain head is captured while the human still owns the session (the
+    // hand-back transition fires only after the parked engine promise
+    // resumes), so the signature attests: this operator, holding control
+    // under exactly this custody history, chose this disposition.
+    return this.store.resolve(
+      id,
+      resolution,
+      secret === undefined
+        ? undefined
+        : (rec) =>
+            signResolution(secret, {
+              interventionId: id,
+              disposition: resolution.disposition,
+              operator: resolution.operator ?? "",
+              controlChainHash: this.controller.chainHash,
+              resolvedAt: rec.resolvedAt!,
+            }),
+    );
   }
 
   close(): void {

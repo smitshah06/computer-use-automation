@@ -3,6 +3,7 @@ import { resolve, sep } from "node:path";
 import express, { type Request, type Response } from "express";
 import type { InterventionResolution } from "../core";
 import type { OperatorGateway } from "./gateway";
+import { tokenMatches } from "./signing";
 
 // Dispositions are validated per intervention TYPE on the server, not just in
 // the dashboard UI: "approve_once" against an assist (or "completed_step"
@@ -15,6 +16,12 @@ const DISPOSITIONS_BY_TYPE: Record<string, ReadonlySet<string>> = {
 export interface ConsoleOptions {
   port: number; // config.escalation.operatorPort
   runDir: string; // for serving intervention screenshots
+  // Bearer token required on every route. Deliberately not optional: a
+  // surface that can approve risky actions must never run unauthenticated —
+  // any local process (or a page passing the loopback Host check) could
+  // otherwise claim and resolve interventions. The CLI prints the tokened
+  // URL; the operator authenticates by opening exactly that.
+  authToken: string;
 }
 
 // Local decision surface for a human operator. The browser session itself is
@@ -39,6 +46,20 @@ export class OperatorConsole {
       const host = (req.headers.host ?? "").split(":")[0];
       if (host !== "127.0.0.1" && host !== "localhost" && host !== "[::1]") {
         return res.status(403).json({ error: "forbidden host" });
+      }
+      next();
+    });
+    // Shared-secret auth on every route, checked before bodies are even
+    // parsed. Programmatic callers send x-scribe-token; the dashboard and its
+    // <img> tags (which cannot set headers) carry ?token= from the URL the
+    // CLI printed. Query-string tokens are acceptable for a loopback-only
+    // console; a remote deployment would move to cookies over TLS.
+    app.use((req: Request, res: Response, next) => {
+      const header = req.headers["x-scribe-token"];
+      const supplied =
+        typeof header === "string" ? header : typeof req.query.token === "string" ? req.query.token : "";
+      if (!supplied || !tokenMatches(supplied, this.opts.authToken)) {
+        return res.status(401).json({ error: "unauthorized: open the console via the exact URL printed by the CLI" });
       }
       next();
     });
@@ -147,6 +168,11 @@ const DASHBOARD_HTML = /* html */ `<!doctype html>
 browser window on this machine; your actions are recorded to the audit trail. Resolve to hand control back.</p>
 <div id="list"><p class="empty">Loading…</p></div>
 <script>
+// The CLI prints the console URL with ?token=…; every API call carries it as
+// a header (and screenshot <img> requests, which cannot set headers, as a
+// query param).
+const TOKEN = new URLSearchParams(location.search).get("token") || "";
+const AUTH = { "x-scribe-token": TOKEN };
 const DISPOSITIONS = {
   assist: ["completed_step", "fixed_environment", "abort"],
   approval: ["approve_once", "deny", "abort"],
@@ -161,7 +187,12 @@ function esc(s) {
 }
 let LATEST = {};
 async function refresh() {
-  const res = await fetch("/api/interventions");
+  const res = await fetch("/api/interventions", { headers: AUTH });
+  if (res.status === 401) {
+    document.getElementById("list").innerHTML =
+      '<p class="empty">Unauthorized — open the console via the exact tokened URL printed by the CLI.</p>';
+    return;
+  }
   const items = await res.json();
   LATEST = {};
   items.forEach(function (it) { LATEST[it.request.id] = it; });
@@ -189,7 +220,7 @@ async function refresh() {
       (r.stepId ? '<div class="meta">step ' + esc(r.stepId) + ': ' + esc(r.intent) + '</div>' : "") +
       '<div class="meta">url: ' + esc(r.currentUrl) + '</div>' +
       '<div class="meta">requested ' + esc(r.requestedAt) + ' · expires ' + esc(r.expiresAt) + '</div>' +
-      (r.screenshotPath ? '<img src="/shot/' + encodeURIComponent(r.id) + '" alt="screenshot">' : "") +
+      (r.screenshotPath ? '<img src="/shot/' + encodeURIComponent(r.id) + '?token=' + encodeURIComponent(TOKEN) + '" alt="screenshot">' : "") +
       '<div style="margin-top:10px">' + actions + '</div></div>';
   }).join("");
 }
@@ -204,7 +235,8 @@ async function claim(id) {
   const op = document.getElementById("op_" + id).value.trim();
   if (!op) return alert("Enter your name first.");
   const res = await fetch("/api/interventions/" + encodeURIComponent(id) + "/claim", {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ operator: op }),
+    method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, AUTH),
+    body: JSON.stringify({ operator: op }),
   });
   if (!res.ok) alert((await res.json()).error);
   refresh();
@@ -215,7 +247,7 @@ async function resolveIt(id) {
   const disposition = document.getElementById("disp_" + id).value;
   const note = document.getElementById("note_" + id).value;
   const res = await fetch("/api/interventions/" + encodeURIComponent(id) + "/resolve", {
-    method: "POST", headers: { "Content-Type": "application/json" },
+    method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, AUTH),
     body: JSON.stringify({ disposition, operator, note }),
   });
   if (!res.ok) alert((await res.json()).error);

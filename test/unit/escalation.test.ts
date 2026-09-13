@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { RunController } from "../../src/escalation/controller";
 import { InterventionStore } from "../../src/escalation/store";
 import { OperatorGateway } from "../../src/escalation/gateway";
+import { verifyResolution } from "../../src/escalation/signing";
 import { RunLogger } from "../../src/evidence/run-logger";
 import { Redactor } from "../../src/evidence/redactor";
 import { nowIso, type InterventionRequest } from "../../src/core";
@@ -58,6 +59,38 @@ describe("RunController control-ownership state machine", () => {
     c.transition("aborted", "op", "stop");
     expect(() => c.transition("agent", "op", "resurrect")).toThrow(/illegal/);
   });
+
+  it("maintains a deterministic, tamper-evident hash chain over the custody trail", () => {
+    const logger = mkLogger();
+    const c = new RunController(logger);
+    const genesis = c.chainHash;
+    c.transition("paused", "system", "checkpoint failed");
+    const h1 = c.chainHash;
+    c.transition("human", "op", "claimed");
+    const h2 = c.chainHash;
+    expect(new Set([genesis, h1, h2]).size).toBe(3); // every transition moves the head
+
+    // each logged transition carries the chain head it produced
+    const logged = readFileSync(join(logger.runDir, "run.jsonl"), "utf8")
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l))
+      .filter((e) => e.type === "control_transition")
+      .map((e) => e.chainHash);
+    expect(logged).toEqual([h1, h2]);
+
+    // deterministic: an auditor replaying the same transitions recomputes the
+    // same heads — so editing any historical event breaks every later hash
+    const c2 = new RunController(mkLogger());
+    c2.transition("paused", "system", "checkpoint failed");
+    expect(c2.chainHash).toBe(h1);
+    c2.transition("human", "op", "claimed");
+    expect(c2.chainHash).toBe(h2);
+
+    const c3 = new RunController(mkLogger());
+    c3.transition("paused", "system", "TAMPERED reason");
+    expect(c3.chainHash).not.toBe(h1);
+  });
 });
 
 describe("OperatorGateway control semantics", () => {
@@ -83,6 +116,45 @@ describe("OperatorGateway control semantics", () => {
     gw.resolve("iv_g2", { disposition: "abort", operator: "alice" });
     await expect(p2).resolves.toMatchObject({ disposition: "abort" });
     expect(gw.controller.current).toBe("aborted");
+    gw.close();
+  });
+
+  it("signs operator dispositions, bound to the custody chain head at hand-back", async () => {
+    const logger = mkLogger();
+    const gw = new OperatorGateway(stubDriver, logger, { signingSecret: "unit-signing-secret" });
+    const p = gw.requestIntervention({ ...req("iv_sig"), type: "approval" });
+    gw.claim("iv_sig", "alice");
+    const chainAtHandback = gw.controller.chainHash; // head while the human owns control
+    const rec = gw.resolve("iv_sig", { disposition: "approve_once", operator: "alice", note: "ok" });
+    await p;
+
+    expect(rec.signature).toBeDefined();
+    expect(rec.signature!.payload).toMatchObject({
+      interventionId: "iv_sig",
+      disposition: "approve_once",
+      operator: "alice",
+      controlChainHash: chainAtHandback,
+    });
+    expect(rec.signature!.payload.resolvedAt).toBe(rec.resolvedAt);
+    expect(verifyResolution("unit-signing-secret", rec.signature!)).toBe(true);
+    expect(verifyResolution("some-other-key", rec.signature!)).toBe(false);
+
+    // the signature is persisted with the record, and a tampered disposition
+    // in the file no longer matches the signed payload
+    const persisted = JSON.parse(readFileSync(join(logger.runDir, "interventions.json"), "utf8"));
+    expect(persisted[0].signature.value).toBe(rec.signature!.value);
+    const tampered = { ...persisted[0].signature, payload: { ...persisted[0].signature.payload, disposition: "deny" } };
+    expect(verifyResolution("unit-signing-secret", tampered)).toBe(false);
+    gw.close();
+  });
+
+  it("leaves dispositions unsigned when no signing secret is configured", async () => {
+    const gw = new OperatorGateway(stubDriver, mkLogger());
+    const p = gw.requestIntervention({ ...req("iv_nosig"), type: "approval" });
+    gw.claim("iv_nosig", "alice");
+    const rec = gw.resolve("iv_nosig", { disposition: "deny", operator: "alice" });
+    await p;
+    expect(rec.signature).toBeUndefined();
     gw.close();
   });
 });

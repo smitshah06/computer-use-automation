@@ -9,7 +9,7 @@ import { PolicyEngine, loadPolicyConfig } from "../../src/policy/engine";
 import { Redactor } from "../../src/evidence/redactor";
 import { RunLogger } from "../../src/evidence/run-logger";
 import { ReplayEngine } from "../../src/replay/executor";
-import { OperatorGateway, OperatorConsole } from "../../src/escalation";
+import { OperatorGateway, OperatorConsole, verifyResolution } from "../../src/escalation";
 import {
   CapabilityArtifactSchema,
   resolveTemplate,
@@ -24,6 +24,9 @@ const PORT = 4612;
 const BASE = `http://localhost:${PORT}`;
 const CONSOLE_PORT = 4712;
 const CONSOLE = `http://127.0.0.1:${CONSOLE_PORT}`;
+const CONSOLE_TOKEN = "itest-console-token";
+const SIGNING_SECRET = "itest-signing-secret";
+const AUTH = { "x-scribe-token": CONSOLE_TOKEN };
 const SECRETS = { tellerUsername: "teller1", tellerPassword: "Demo!Pass1" };
 
 const ctx: TemplateContext = {
@@ -78,32 +81,45 @@ describe("Escalation: live-session handoff through the operator console", () => 
     policy.bindArtifact(artifact.policy, artifact.provenance.reviewStatus);
     const logger = new RunLogger("escalation_itest", new Redactor(), mkdtempSync(join(tmpdir(), "scribe-esc-")));
     const driver = new PlaywrightDriver(policy, logger);
-    const gateway = new OperatorGateway(driver, logger);
-    const operatorConsole = new OperatorConsole(gateway, { port: CONSOLE_PORT, runDir: logger.runDir });
+    const gateway = new OperatorGateway(driver, logger, { signingSecret: SIGNING_SECRET });
+    const operatorConsole = new OperatorConsole(gateway, {
+      port: CONSOLE_PORT,
+      runDir: logger.runDir,
+      authToken: CONSOLE_TOKEN,
+    });
     await operatorConsole.start();
 
     const engine = new ReplayEngine(artifact, config, driver, logger, { secrets: SECRETS, gateway });
     const runPromise = engine.run({ memberId: "12345" });
 
     try {
+      // Every route is behind the shared-secret token: no token and wrong
+      // token are both rejected before any intervention data leaks.
+      expect((await fetch(`${CONSOLE}/api/interventions`)).status).toBe(401);
+      expect((await fetch(`${CONSOLE}/api/interventions`, { headers: { "x-scribe-token": "wrong" } })).status).toBe(401);
+      expect((await fetch(`${CONSOLE}/`)).status).toBe(401);
+
       // The console shows the pending intervention with full context.
       const iv = await until<InterventionRecord>(async () => {
-        const list = (await (await fetch(`${CONSOLE}/api/interventions`)).json()) as InterventionRecord[];
+        const list = (await (await fetch(`${CONSOLE}/api/interventions`, { headers: AUTH })).json()) as InterventionRecord[];
         return list.find((x) => x.status === "pending");
       });
       expect(iv.request).toMatchObject({ type: "assist", stepId: "s4", capabilityId: artifact.capability.id });
       expect(iv.request.reason).toContain("urlMatches");
 
-      const html = await (await fetch(`${CONSOLE}/`)).text();
+      // The dashboard authenticates via the ?token= the CLI prints (an <img>
+      // cannot set headers), programmatic callers via the header.
+      const html = await (await fetch(`${CONSOLE}/?token=${CONSOLE_TOKEN}`)).text();
       expect(html).toContain("Operator Console");
-      const shot = await fetch(`${CONSOLE}/shot/${iv.request.id}`);
+      expect((await fetch(`${CONSOLE}/shot/${iv.request.id}`)).status).toBe(401);
+      const shot = await fetch(`${CONSOLE}/shot/${iv.request.id}?token=${CONSOLE_TOKEN}`);
       expect(shot.status).toBe(200);
       expect(shot.headers.get("content-type")).toContain("image/png");
 
       // Operator claims → control transfers to the human, capture starts.
       const claim = await fetch(`${CONSOLE}/api/interventions/${iv.request.id}/claim`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...AUTH },
         body: JSON.stringify({ operator: "itest-operator" }),
       });
       expect(claim.ok).toBe(true);
@@ -111,7 +127,7 @@ describe("Escalation: live-session handoff through the operator console", () => 
 
       const doubleClaim = await fetch(`${CONSOLE}/api/interventions/${iv.request.id}/claim`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...AUTH },
         body: JSON.stringify({ operator: "second-operator" }),
       });
       expect(doubleClaim.status).toBe(409);
@@ -148,11 +164,19 @@ describe("Escalation: live-session handoff through the operator console", () => 
       });
       expect(signIn.ok).toBe(true);
 
+      // An unauthenticated resolve is rejected before it can touch the run.
+      const forgedResolve = await fetch(`${CONSOLE}/api/interventions/${iv.request.id}/resolve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ disposition: "abort", operator: "mallory" }),
+      });
+      expect(forgedResolve.status).toBe(401);
+
       // Hand back: the step's work is done; the engine verifies s4's own
       // checkpoint before continuing from s5.
       const resolve = await fetch(`${CONSOLE}/api/interventions/${iv.request.id}/resolve`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...AUTH },
         body: JSON.stringify({ disposition: "completed_step", operator: "itest-operator", note: "re-authenticated" }),
       });
       expect(resolve.ok).toBe(true);
@@ -192,6 +216,21 @@ describe("Escalation: live-session handoff through the operator console", () => 
 
       const persisted = JSON.parse(readFileSync(join(logger.runDir, "interventions.json"), "utf8"));
       expect(persisted[0]).toMatchObject({ status: "resolved", claimedBy: "itest-operator" });
+
+      // The disposition is signed, verifiable, and bound to the custody chain
+      // head at hand-back — the paused→human transition (the human still held
+      // control when they resolved; agent hand-back happens after).
+      const sig = persisted[0].signature;
+      expect(sig).toMatchObject({
+        alg: "HMAC-SHA256",
+        payload: { disposition: "completed_step", operator: "itest-operator" },
+      });
+      expect(verifyResolution(SIGNING_SECRET, sig)).toBe(true);
+      expect(verifyResolution("not-the-secret", sig)).toBe(false);
+      const humanTransition = events.find((e) => e.type === "control_transition" && e.to === "human")!;
+      expect(sig.payload.controlChainHash).toBe(humanTransition.chainHash);
+      const tampered = { ...sig, payload: { ...sig.payload, operator: "mallory" } };
+      expect(verifyResolution(SIGNING_SECRET, tampered)).toBe(false);
     } finally {
       gateway.close();
       await operatorConsole.stop();

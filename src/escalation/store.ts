@@ -1,5 +1,6 @@
 import { nowIso, type InterventionRequest, type InterventionResolution } from "../core";
 import type { RunLogger } from "../evidence/run-logger";
+import type { ResolutionSignature } from "./signing";
 
 export interface InterventionRecord {
   request: InterventionRequest;
@@ -8,6 +9,7 @@ export interface InterventionRecord {
   claimedAt?: string;
   resolution?: InterventionResolution;
   resolvedAt?: string;
+  signature?: ResolutionSignature; // operator dispositions only; TTL expiries have no human to attest
 }
 
 // Holds open interventions, parks the engine's promise until an operator (or
@@ -55,7 +57,11 @@ export class InterventionStore {
     return rec;
   }
 
-  resolve(id: string, resolution: InterventionResolution): InterventionRecord {
+  resolve(
+    id: string,
+    resolution: InterventionResolution,
+    sign?: (rec: InterventionRecord) => ResolutionSignature,
+  ): InterventionRecord {
     const rec = this.records.get(id);
     if (!rec) throw new Error(`unknown intervention ${id}`);
     if (rec.status === "resolved" || rec.status === "expired") {
@@ -79,6 +85,10 @@ export class InterventionStore {
     rec.status = "resolved";
     rec.resolution = resolution;
     rec.resolvedAt = nowIso();
+    // Signed after resolvedAt is fixed and before persist, so the stored
+    // record and the signed payload agree by construction at write time —
+    // any later disagreement IS the tamper evidence.
+    if (sign) rec.signature = sign(rec);
     this.settle(id, resolution);
     return rec;
   }
